@@ -1,4 +1,4 @@
-// Konfigurasi Supabase
+// Konfigurasi Supabase (Ganti dengan kredensial Supabase Anda)
 const SUPABASE_URL = 'https://tgqadtkvarirvppbgyzu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRncWFkdGt2YXJpcnZwcGJneXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzE4NzcsImV4cCI6MjEwNjAwNzg3N30.DGQAgf0qQ_scIn2XHpWSdTDxmnqr-SLyW-HiQ8WqOG0';
 
@@ -13,6 +13,7 @@ try {
 
 const DEFAULT_ID_TYPES = ["KTP", "SIM", "Paspor", "ID Pegawai", "Lainnya"];
 
+// Kamus Bahasa
 const dictionary = {
     id: {
         welcome: "Selamat Datang di Portal Tamu",
@@ -41,8 +42,6 @@ const dictionary = {
 };
 
 let currentLang = 'id';
-let currentUserRole = null;
-let currentUsername = null;
 
 function changeLanguage() {
     currentLang = document.getElementById('lang-select').value;
@@ -69,57 +68,45 @@ function changeLanguage() {
 
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-    const target = document.getElementById(viewId);
-    if (target) {
-        target.classList.add('active');
-        sessionStorage.setItem('currentView', viewId);
-    }
+    document.getElementById(viewId).classList.add('active');
+    sessionStorage.setItem('currentView', viewId);
 }
 
+// Inisialisasi Saat Halaman Dimuat (Memperbaiki Session & State Refresh)
 window.onload = async () => {
     await loadWebSettings();
     await loadDropdownData();
-    await cleanupExpiredGuests(); // Auto clear data > 1 hari
+    await autoClearOldGuests(); // Jalankan pembersihan data tamu > 1 hari
 
-    // Pemulihan Sesi & Posisi Halaman saat Refresh
+    // Pulihkan Session Admin/Super Admin atau Cek Status saat Refresh
     const savedRole = sessionStorage.getItem('currentUserRole');
-    const savedUser = sessionStorage.getItem('currentUsername');
     const savedView = sessionStorage.getItem('currentView');
-    const savedGuestId = sessionStorage.getItem('lastGuestId');
+    const savedCheckId = sessionStorage.getItem('lastCheckedId');
 
-    if (savedRole && savedUser) {
+    if (savedCheckId) {
+        const inputEl = document.getElementById('check-guest-id');
+        if (inputEl) inputEl.value = savedCheckId;
+    }
+
+    if (savedRole) {
         currentUserRole = savedRole;
-        currentUsername = savedUser;
         if (currentUserRole === 'super_admin') {
-            showView(savedView || 'view-superadmin');
+            showView('view-superadmin');
             loadApproveUsers();
             loadSuperAdminGuests();
             loadManageApprovedCompanies();
             loadManageIdTypes();
         } else if (currentUserRole === 'admin') {
-            showView(savedView || 'view-admin');
+            showView('view-admin');
             loadAdminGuests();
         }
-    } else if (savedView) {
+    } else if (savedView && savedView !== 'view-admin' && savedView !== 'view-superadmin') {
         showView(savedView);
-        if (savedView === 'view-status' && savedGuestId) {
-            document.getElementById('check-guest-id').value = savedGuestId;
+        if (savedView === 'view-status' && savedCheckId) {
             checkStatus();
         }
     }
 };
-
-// Auto Clear Data Tamu > 1 Hari (24 Jam)
-async function cleanupExpiredGuests() {
-    const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
-    if (supabaseClient) {
-        await supabaseClient.from('guests').delete().lt('created_at', oneDayAgo);
-    } else {
-        let guests = JSON.parse(localStorage.getItem('guests') || '[]');
-        guests = guests.filter(g => new Date(g.created_at || Date.now()) > new Date(oneDayAgo));
-        localStorage.setItem('guests', JSON.stringify(guests));
-    }
-}
 
 async function loadWebSettings() {
     let settings = {};
@@ -178,7 +165,24 @@ async function loadDropdownData() {
     });
 }
 
-// Registrasi Tamu dengan Auto-Fill & Auto Redirect ke Cek Status
+// Fitur Auto Clear Tamu Setelah 1 Hari (24 Jam)
+async function autoClearOldGuests() {
+    const oneDayAgo = new Date(new Date().getTime() - (24 * 60 * 60 * 1000));
+    
+    if (supabaseClient) {
+        try {
+            await supabaseClient.from('guests').delete().lt('created_at', oneDayAgo.toISOString());
+        } catch (e) {
+            console.warn('Gagal membersihkan data lama di Supabase.');
+        }
+    } else {
+        let guests = JSON.parse(localStorage.getItem('guests') || '[]');
+        guests = guests.filter(g => new Date(g.created_at || Date.now()) > oneDayAgo);
+        localStorage.setItem('guests', JSON.stringify(guests));
+    }
+}
+
+// Registrasi Tamu Baru dengan Auto-Fill & Simpan Sesi Status
 async function handleRegister(e) {
     e.preventDefault();
     const guestId = 'GST-' + Math.floor(100000 + Math.random() * 900000);
@@ -195,7 +199,6 @@ async function handleRegister(e) {
         origin_company: compInput,
         purpose: document.getElementById('reg-purpose').value.trim(),
         status: 'Pending',
-        processed_by: '-',
         created_at: new Date().toISOString()
     };
 
@@ -210,64 +213,89 @@ async function handleRegister(e) {
         if (!comps.includes(compInput)) { comps.push(compInput); localStorage.setItem('approved_companies', JSON.stringify(comps)); }
     }
 
-    sessionStorage.setItem('lastGuestId', guestId);
+    sessionStorage.setItem('lastCheckedId', guestId);
     const statusInput = document.getElementById('check-guest-id');
     if (statusInput) statusInput.value = guestId;
 
     alert(`Registrasi Berhasil!\n\nNomor Registrasi Tamu Anda: ${guestId}`);
     document.getElementById('form-register').reset();
+    
     showView('view-status');
     checkStatus();
 }
 
+// Pengecekan Status Kunjungan (Mencegah "Tidak Ditemukan" dengan Trim & Case-Insensitive)
 async function checkStatus() {
-    const id = document.getElementById('check-guest-id').value.trim();
+    const idInput = document.getElementById('check-guest-id').value.trim();
     const resDiv = document.getElementById('status-result');
     resDiv.style.display = 'block';
 
-    if (!id) {
-        resDiv.className = 'notif rejected'; 
-        resDiv.innerText = 'Masukkan Nomor Registrasi / ID Tamu terlebih dahulu.'; 
+    if (!idInput) {
+        resDiv.innerHTML = `<div class="notif rejected">⚠️ Masukkan Nomor Registrasi / ID Tamu terlebih dahulu.</div>`;
         return;
     }
 
-    sessionStorage.setItem('lastGuestId', id);
+    sessionStorage.setItem('lastCheckedId', idInput);
 
     let guest = null;
     if (supabaseClient) {
-        const { data } = await supabaseClient.from('guests').select('*').eq('guest_id', id).maybeSingle();
+        // Coba cari persis
+        let { data } = await supabaseClient.from('guests').select('*').ilike('guest_id', idInput).maybeSingle();
+        if (!data) {
+            // Cari berdasarkan No ID Identitas jika guest_id tidak pas
+            let { data: dataById } = await supabaseClient.from('guests').select('*').ilike('id_number', idInput).maybeSingle();
+            data = dataById;
+        }
         guest = data;
-    } else {
+    } 
+    
+    if (!guest) {
         const guests = JSON.parse(localStorage.getItem('guests') || '[]');
-        guest = guests.find(g => g.guest_id.toLowerCase() === id.toLowerCase());
+        guest = guests.find(g => g.guest_id.toLowerCase() === idInput.toLowerCase() || g.id_number.toLowerCase() === idInput.toLowerCase());
     }
 
     if (!guest) {
-        resDiv.className = 'notif rejected'; 
-        resDiv.innerText = 'Nomor Registrasi / ID Tamu tidak ditemukan.';
+        resDiv.innerHTML = `<div class="notif rejected">❌ Nomor Registrasi / ID Tamu <strong>"${idInput}"</strong> tidak ditemukan. Periksa kembali kode Anda.</div>`;
     } else {
-        let statusText = '';
+        let badgeStyle = '';
+        let statusLabel = '';
+        let notifMessage = '';
+
         if (guest.status === 'Approved') {
-            statusText = '<span style="color:#155724; font-weight:bold;">DISETUJUI (APPROVED)</span>';
+            badgeStyle = 'background-color: #28a745; color: #ffffff;';
+            statusLabel = 'DISETUJUI (APPROVED)';
+            notifMessage = `<div class="notif success" style="margin-top: 15px; text-align: left;">🔔 <strong>AKSES DISETUJUI!</strong> Tunjukkan bukti ini kepada petugas keamanan.</div>`;
         } else if (guest.status === 'Rejected') {
-            statusText = '<span style="color:#721c24; font-weight:bold;">DITOLAK (REJECTED)</span>';
+            badgeStyle = 'background-color: #dc3545; color: #ffffff;';
+            statusLabel = 'DITOLAK (REJECTED)';
+            notifMessage = `<div class="notif rejected" style="margin-top: 15px; text-align: left;">❌ <strong>MOHON MAAF:</strong> Permohonan kunjungan Anda ditolak.</div>`;
         } else {
-            statusText = '<span style="color:#856404; font-weight:bold;">MENUNGGU VERIFIKASI (PENDING)</span>';
+            badgeStyle = 'background-color: #ffc107; color: #212529;';
+            statusLabel = 'MENUNGGU VERIFIKASI (PENDING)';
+            notifMessage = `<div class="notif pending" style="margin-top: 15px; text-align: left;">⏳ <strong>DALAM PROSES:</strong> Status persetujuan masih diproses oleh Admin.</div>`;
         }
 
         resDiv.innerHTML = `
-            <div style="text-align: left; padding: 10px; line-height: 1.7; background:#ffffff; border-radius:6px; border:1px solid #ddd;">
-                📌 <strong>Nomor Registrasi:</strong> <span style="color:#0066cc; font-weight:bold;">${guest.guest_id}</span><br>
-                👤 <strong>Nama:</strong> ${guest.fullname}<br>
-                🪪 <strong>ID:</strong> ${guest.id_type} - ${guest.id_number}<br>
-                🏢 <strong>Perusahaan:</strong> ${guest.origin_company}<br>
-                📝 <strong>Tujuan:</strong> ${guest.purpose}<br>
-                📊 <strong>Status:</strong> ${statusText}<br>
-                🛠️ <strong>Diproses Oleh:</strong> ${guest.processed_by || '-'}
+            <div style="background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 18px; text-align: left; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; margin-bottom: 12px;">
+                    <span style="font-size: 0.9rem; color: #666; font-weight: 600;">STATUS KUNJUNGAN TAMU</span>
+                    <span style="padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 0.8rem; ${badgeStyle}">${statusLabel}</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr; gap: 8px; font-size: 0.95rem; line-height: 1.5; color: #333;">
+                    <div><strong>📌 Nomor Registrasi:</strong> <span style="color:#0066cc; font-size:1.1rem; font-weight:bold;">${guest.guest_id}</span></div>
+                    <div><strong>👤 Nama Lengkap:</strong> ${guest.fullname}</div>
+                    <div><strong>🪪 Identitas (${guest.id_type}):</strong> ${guest.id_number}</div>
+                    <div><strong>🏢 Asal Perusahaan:</strong> ${guest.origin_company}</div>
+                    <div><strong>📝 Tujuan Kunjungan:</strong> ${guest.purpose}</div>
+                </div>
+                ${notifMessage}
             </div>
         `;
     }
 }
+
+// Autentikasi Login Admin / Super Admin
+let currentUserRole = null;
 
 async function handleLogin(e) {
     e.preventDefault();
@@ -280,16 +308,10 @@ async function handleLogin(e) {
 
     if (supabaseClient) {
         try {
-            const { data, error } = await supabaseClient
-                .from('users')
-                .select('*')
-                .eq('username', user)
-                .eq('password', pass)
-                .maybeSingle();
-
+            const { data, error } = await supabaseClient.from('users').select('*').eq('username', user).eq('password', pass).maybeSingle();
             if (!error && data) loggedIn = data;
         } catch (err) {
-            console.warn('Gagal auth Supabase.');
+            console.warn('Gagal auth via Supabase.');
         }
     }
 
@@ -299,7 +321,6 @@ async function handleLogin(e) {
             { username: "superadmin", password: "super123", role: "super_admin" },
             { username: "admin", password: "admin123", role: "admin" }
         ];
-
         defaultUsers.forEach(def => {
             if (!users.some(u => u.username === def.username)) users.push(def);
         });
@@ -309,10 +330,7 @@ async function handleLogin(e) {
 
     if (loggedIn) {
         currentUserRole = loggedIn.role;
-        currentUsername = loggedIn.username;
         sessionStorage.setItem('currentUserRole', currentUserRole);
-        sessionStorage.setItem('currentUsername', currentUsername);
-
         document.getElementById('form-login').reset();
         
         if (currentUserRole === 'super_admin') {
@@ -332,45 +350,55 @@ async function handleLogin(e) {
 
 function logout() { 
     currentUserRole = null; 
-    currentUsername = null;
-    sessionStorage.clear();
+    sessionStorage.removeItem('currentUserRole');
+    sessionStorage.removeItem('currentView');
     showView('view-home'); 
 }
 
 async function handleResetPassword() {
     const user = document.getElementById('reset-username').value.trim();
     const newPass = document.getElementById('reset-new-password').value.trim();
-    if (!user || !newPass) return alert('Lengkapi data!');
+    if (!user || !newPass) return alert('Lengkapi username dan password baru!');
 
     if (supabaseClient) {
-        await supabaseClient.from('users').update({ password: newPass }).eq('username', user);
+        const { error } = await supabaseClient.from('users').update({ password: newPass }).eq('username', user);
+        if (error) return alert('Gagal reset: ' + error.message);
     } else {
         let users = JSON.parse(localStorage.getItem('users') || '[]');
         let f = users.find(u => u.username === user);
         if (f) { f.password = newPass; localStorage.setItem('users', JSON.stringify(users)); }
     }
-    alert('Password berhasil direset!');
+    alert('Password berhasil direset! Silakan login kembali.');
     showView('view-login');
 }
 
 async function addApproveUser() {
     const u = document.getElementById('new-admin-user').value.trim();
     const p = document.getElementById('new-admin-pass').value.trim();
-    if (!u || !p) return alert('Isi data admin baru.');
+    if (!u || !p) return alert('Isi username dan password admin baru.');
 
+    let isSaved = false;
     if (supabaseClient) {
-        await supabaseClient.from('users').insert([{ username: u, password: p, role: 'admin' }]);
+        const { error } = await supabaseClient.from('users').insert([{ username: u, password: p, role: 'admin' }]);
+        if (!error) isSaved = true;
     }
+
     let users = JSON.parse(localStorage.getItem('users') || '[]');
     if (!users.some(x => x.username === u)) {
         users.push({ username: u, password: p, role: 'admin' });
         localStorage.setItem('users', JSON.stringify(users));
+        isSaved = true;
     }
 
-    document.getElementById('new-admin-user').value = '';
-    document.getElementById('new-admin-pass').value = '';
-    loadApproveUsers();
-    alert('Admin berhasil ditambahkan!');
+    if (isSaved) {
+        document.getElementById('new-admin-user').value = '';
+        document.getElementById('new-admin-pass').value = '';
+        await loadApproveUsers();
+        await loadSuperAdminGuests(); // Memuat ulang agar info user approve tampil sinkron
+        alert(`Akun Admin Approve "${u}" berhasil ditambahkan!`);
+    } else {
+        alert('Gagal menambah akun.');
+    }
 }
 
 async function loadApproveUsers() {
@@ -385,18 +413,28 @@ async function loadApproveUsers() {
 
     const c = document.getElementById('approve-users-list'); 
     c.innerHTML = '';
+    if (users.length === 0) {
+        c.innerHTML = '<small style="color:#666;">Belum ada akun admin approve tambahan.</small>';
+        return;
+    }
+
     users.forEach(u => {
-        c.innerHTML += `<div class="item-row"><span><strong>${u.username}</strong></span><button onclick="deleteApproveUser('${u.username}')" class="btn-danger" style="width:auto; padding:3px 8px;">Hapus</button></div>`;
+        c.innerHTML += `
+            <div class="item-row">
+                <span>User Admin: <strong>${u.username}</strong></span>
+                <button onclick="deleteApproveUser('${u.username}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus Akses</button>
+            </div>`;
     });
 }
 
 async function deleteApproveUser(username) {
-    if (confirm(`Hapus ${username}?`)) {
+    if (confirm(`Hapus akses approve untuk user ${username}?`)) {
         if (supabaseClient) await supabaseClient.from('users').delete().eq('username', username);
         let users = JSON.parse(localStorage.getItem('users') || '[]');
         users = users.filter(x => x.username !== username);
         localStorage.setItem('users', JSON.stringify(users));
         loadApproveUsers();
+        loadSuperAdminGuests();
     }
 }
 
@@ -417,60 +455,73 @@ async function loadAdminGuests() {
                 <div>
                     <strong>${g.guest_id}</strong> - ${g.fullname}<br>
                     <small>ID: ${g.id_type} (${g.id_number}) | PT: ${g.origin_company}</small><br>
-                    <small>Status: <b>${g.status}</b> | Diproses Oleh: <b>${g.processed_by || '-'}</b></small>
+                    <small>Status: <b>${g.status}</b></small>
                 </div>
                 <div class="action-btns">
-                    <button onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:4px 8px;">Approve</button>
-                    <button onclick="updateGuestStatus('${g.guest_id}', 'Rejected')" class="btn-danger" style="padding:4px 8px;">Reject</button>
+                    <button onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:4px 8px; font-size:0.8rem;">Approve</button>
+                    <button onclick="updateGuestStatus('${g.guest_id}', 'Rejected')" class="btn-danger" style="padding:4px 8px; font-size:0.8rem;">Reject</button>
                 </div>
             </div>`;
     });
 }
 
 async function updateGuestStatus(id, status) {
-    const updater = currentUsername || currentUserRole || 'Admin';
     if (supabaseClient) {
-        await supabaseClient.from('guests').update({ status: status, processed_by: updater }).eq('guest_id', id);
+        await supabaseClient.from('guests').update({ status: status }).eq('guest_id', id);
     } else {
         let guests = JSON.parse(localStorage.getItem('guests') || '[]');
         let g = guests.find(x => x.guest_id === id); 
-        if (g) { g.status = status; g.processed_by = updater; }
+        if (g) g.status = status;
         localStorage.setItem('guests', JSON.stringify(guests));
     }
     if (currentUserRole === 'super_admin') loadSuperAdminGuests();
     else loadAdminGuests();
 }
 
+// Menampilkan Manajemen Akses User Approve pada Hak Penuh Persetujuan & Hapus Data Tamu
 async function loadSuperAdminGuests() {
     let guests = [];
+    let adminUsers = [];
+    
     if (supabaseClient) {
-        const { data } = await supabaseClient.from('guests').select('*').order('created_at', { ascending: false });
-        guests = data || [];
+        const { data: gData } = await supabaseClient.from('guests').select('*').order('created_at', { ascending: false });
+        guests = gData || [];
+        const { data: uData } = await supabaseClient.from('users').select('username').eq('role', 'admin');
+        adminUsers = uData ? uData.map(u => u.username) : [];
     } else {
         guests = JSON.parse(localStorage.getItem('guests') || '[]');
+        let arr = JSON.parse(localStorage.getItem('users') || '[]');
+        adminUsers = arr.filter(x => x.role === 'admin').map(u => u.username);
     }
 
     const c = document.getElementById('superadmin-guest-container'); 
     c.innerHTML = '';
+
+    // Tampilkan informasi user approve yang aktif di bagian atas panel
+    let adminInfoBox = `<div style="background:#f8f9fa; padding:8px; border-radius:5px; margin-bottom:10px; font-size:0.85rem; color:#444;">
+        👥 <strong>Manajemen User Approve Aktif:</strong> ${adminUsers.length > 0 ? adminUsers.join(', ') : 'Tidak ada admin tambahan'}
+    </div>`;
+    
+    c.innerHTML += adminInfoBox;
+
     guests.forEach(g => {
         c.innerHTML += `
             <div class="item-row">
                 <div>
                     <strong>${g.guest_id}</strong> - ${g.fullname} (${g.origin_company})<br>
-                    <small>ID: ${g.id_type} (${g.id_number}) | Status: <b>${g.status}</b></small><br>
-                    <small style="color: #0066cc;">👤 Diproses/Di-approve oleh: <b>${g.processed_by || 'Belum diproses'}</b></small>
+                    <small>ID: ${g.id_type} (${g.id_number}) | Status: <b>${g.status}</b></small>
                 </div>
                 <div class="action-btns">
-                    <button onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:3px 6px;">Approve</button>
-                    <button onclick="updateGuestStatus('${g.guest_id}', 'Rejected')" class="btn-danger" style="padding:3px 6px;">Reject</button>
-                    <button onclick="deleteGuestRecord('${g.guest_id}')" class="btn-danger" style="padding:3px 6px; background:#8b0000;">Hapus</button>
+                    <button onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:3px 6px; font-size:0.75rem;">Approve</button>
+                    <button onclick="updateGuestStatus('${g.guest_id}', 'Rejected')" class="btn-danger" style="padding:3px 6px; font-size:0.75rem;">Reject</button>
+                    <button onclick="deleteGuestRecord('${g.guest_id}')" class="btn-danger" style="padding:3px 6px; font-size:0.75rem; background:#8b0000;">Hapus Data</button>
                 </div>
             </div>`;
     });
 }
 
 async function deleteGuestRecord(id) {
-    if (confirm(`Hapus permanen tamu ${id}?`)) {
+    if (confirm(`Hapus permanen record tamu ${id}?`)) {
         if (supabaseClient) await supabaseClient.from('guests').delete().eq('guest_id', id);
         else {
             let guests = JSON.parse(localStorage.getItem('guests') || '[]');
@@ -483,19 +534,53 @@ async function deleteGuestRecord(id) {
 
 async function saveWebConfiguration() {
     const ptName = document.getElementById('config-pt-name').value.trim();
-    if (ptName && supabaseClient) {
-        await supabaseClient.from('web_settings').upsert({ setting_key: 'company_name', setting_value: ptName });
+    const logoFile = document.getElementById('config-logo').files[0];
+    const wallFile = document.getElementById('config-wallpaper').files[0];
+
+    let s = JSON.parse(localStorage.getItem('web_settings') || '{}');
+
+    if (ptName) {
+        if (supabaseClient) await supabaseClient.from('web_settings').upsert({ setting_key: 'company_name', setting_value: ptName });
+        else s.company_name = ptName;
     }
-    alert('Konfigurasi disimpan!');
-    loadWebSettings();
+    if (logoFile) {
+        const r = new FileReader();
+        r.onload = async (e) => {
+            if (supabaseClient) await supabaseClient.from('web_settings').upsert({ setting_key: 'logo_url', setting_value: e.target.result });
+            else s.logo_url = e.target.result;
+            localStorage.setItem('web_settings', JSON.stringify(s)); 
+            loadWebSettings();
+        }; 
+        r.readAsDataURL(logoFile);
+    }
+    if (wallFile) {
+        const r = new FileReader();
+        r.onload = async (e) => {
+            if (supabaseClient) await supabaseClient.from('web_settings').upsert({ setting_key: 'wallpaper_url', setting_value: e.target.result });
+            else s.wallpaper_url = e.target.result;
+            localStorage.setItem('web_settings', JSON.stringify(s)); 
+            loadWebSettings();
+        }; 
+        r.readAsDataURL(wallFile);
+    }
+    if (!supabaseClient) localStorage.setItem('web_settings', JSON.stringify(s));
+    alert('Konfigurasi berhasil disimpan!');
+    setTimeout(loadWebSettings, 500);
 }
 
 async function resetAllConfigurations() {
-    if (confirm('Reset konfigurasi?')) {
-        if (supabaseClient) await supabaseClient.from('web_settings').delete().neq('setting_key', '');
-        localStorage.removeItem('web_settings');
+    if (confirm('Reset seluruh konfigurasi web (Nama PT, Logo, Wallpaper)?')) {
+        if (supabaseClient) {
+            await supabaseClient.from('web_settings').upsert([
+                { setting_key: 'company_name', setting_value: 'PT Solusi Teknologi Indonesia' },
+                { setting_key: 'logo_url', setting_value: '' },
+                { setting_key: 'wallpaper_url', setting_value: '' }
+            ]);
+        } else { 
+            localStorage.removeItem('web_settings'); 
+        }
         loadWebSettings();
-        alert('Dihapus!');
+        alert('Seluruh konfigurasi web berhasil direset!');
     }
 }
 
@@ -503,6 +588,11 @@ async function addApprovedCompany() {
     const c = document.getElementById('new-approved-company').value.trim(); 
     if (!c) return;
     if (supabaseClient) await supabaseClient.from('approved_companies').insert([{ company_name: c }]);
+    else { 
+        let arr = JSON.parse(localStorage.getItem('approved_companies') || '[]'); 
+        arr.push(c); 
+        localStorage.setItem('approved_companies', JSON.stringify(arr)); 
+    }
     loadManageApprovedCompanies(); 
     loadDropdownData(); 
     document.getElementById('new-approved-company').value = '';
@@ -513,14 +603,22 @@ async function loadManageApprovedCompanies() {
     if (supabaseClient) { 
         const { data } = await supabaseClient.from('approved_companies').select('*'); 
         comps = data || []; 
+    } else { 
+        let arr = JSON.parse(localStorage.getItem('approved_companies') || '[]'); 
+        comps = arr.map(c => ({ company_name: c })); 
     }
     const container = document.getElementById('approved-companies-manage-list'); 
     container.innerHTML = '';
-    comps.forEach(c => container.innerHTML += `<div class="item-row"><span>${c.company_name}</span><button onclick="deleteComp('${c.company_name}')" class="btn-danger" style="width:auto; padding:3px 8px;">Hapus</button></div>`);
+    comps.forEach(c => container.innerHTML += `<div class="item-row"><span>${c.company_name}</span><button onclick="deleteComp('${c.company_name}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button></div>`);
 }
 
 async function deleteComp(name) {
     if (supabaseClient) await supabaseClient.from('approved_companies').delete().eq('company_name', name);
+    else { 
+        let arr = JSON.parse(localStorage.getItem('approved_companies') || '[]'); 
+        arr = arr.filter(c => c !== name); 
+        localStorage.setItem('approved_companies', JSON.stringify(arr)); 
+    }
     loadManageApprovedCompanies(); 
     loadDropdownData();
 }
@@ -528,7 +626,15 @@ async function deleteComp(name) {
 async function addIdType() {
     const t = document.getElementById('new-id-type').value.trim();
     if (!t) return;
-    if (supabaseClient) await supabaseClient.from('id_types').insert([{ name: t }]);
+
+    if (supabaseClient) {
+        const { error } = await supabaseClient.from('id_types').insert([{ name: t }]);
+        if (error) alert('Gagal menambah jenis ID: ' + error.message);
+    } else {
+        let arr = JSON.parse(localStorage.getItem('id_types') || JSON.stringify(DEFAULT_ID_TYPES));
+        if (!arr.includes(t)) arr.push(t);
+        localStorage.setItem('id_types', JSON.stringify(arr));
+    }
     loadManageIdTypes();
     loadDropdownData();
     document.getElementById('new-id-type').value = '';
@@ -539,17 +645,30 @@ async function loadManageIdTypes() {
     if (supabaseClient) {
         const { data } = await supabaseClient.from('id_types').select('*');
         types = data || [];
+    } else {
+        let arr = JSON.parse(localStorage.getItem('id_types') || JSON.stringify(DEFAULT_ID_TYPES));
+        types = arr.map(t => ({ name: t }));
     }
     const container = document.getElementById('id-types-manage-list');
     container.innerHTML = '';
     types.forEach(t => {
-        container.innerHTML += `<div class="item-row"><span><strong>${t.name}</strong></span><button onclick="deleteId('${t.name}')" class="btn-danger" style="width:auto; padding:3px 8px;">Hapus</button></div>`;
+        container.innerHTML += `
+            <div class="item-row">
+                <span>Jenis ID: <strong>${t.name}</strong></span>
+                <button onclick="deleteId('${t.name}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button>
+            </div>`;
     });
 }
 
 async function deleteId(name) {
-    if (confirm(`Hapus Jenis ID ${name}?`)) {
-        if (supabaseClient) await supabaseClient.from('id_types').delete().eq('name', name);
+    if (confirm(`Hapus Jenis ID "${name}" dari daftar pilihan?`)) {
+        if (supabaseClient) {
+            await supabaseClient.from('id_types').delete().eq('name', name);
+        } else {
+            let arr = JSON.parse(localStorage.getItem('id_types') || JSON.stringify(DEFAULT_ID_TYPES));
+            arr = arr.filter(t => t !== name);
+            localStorage.setItem('id_types', JSON.stringify(arr));
+        }
         loadManageIdTypes();
         loadDropdownData();
     }
