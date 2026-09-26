@@ -1,3 +1,4 @@
+// Konfigurasi Supabase (Ganti dengan kredensial Supabase Anda)
 const SUPABASE_URL = 'https://tgqadtkvarirvppbgyzu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRncWFkdGt2YXJpcnZwcGJneXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzE4NzcsImV4cCI6MjEwNjAwNzg3N30.DGQAgf0qQ_scIn2XHpWSdTDxmnqr-SLyW-HiQ8WqOG0';
 
@@ -12,6 +13,7 @@ try {
 
 const DEFAULT_ID_TYPES = ["KTP", "SIM", "Paspor", "ID Pegawai", "Lainnya"];
 
+// Kamus Bahasa
 const dictionary = {
     id: {
         welcome: "Selamat Datang di Portal Tamu",
@@ -67,15 +69,21 @@ function changeLanguage() {
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(el => {
         el.classList.remove('active');
+        el.style.display = 'none';
     });
+    
     const targetView = document.getElementById(viewId);
     if (targetView) {
+        targetView.style.display = 'block';
         targetView.classList.add('active');
         sessionStorage.setItem('currentActiveView', viewId);
     }
 }
 
+// PERSISTENSI SAAT PAGE LOAD & AUTO CLEAR DATA > 1 HARI
 window.onload = async () => {
+    document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
+
     await loadWebSettings();
     await loadDropdownData();
     await autoClearOldGuests();
@@ -102,6 +110,7 @@ window.onload = async () => {
     }
 };
 
+// FUNGSI AUTO CLEAR DATA TAMU LEBIH DARI 1 HARI (24 Jam)
 async function autoClearOldGuests() {
     const oneDayMs = 24 * 60 * 60 * 1000;
     const now = new Date().getTime();
@@ -446,7 +455,7 @@ async function loadApproveUsers() {
         c.innerHTML += `
             <div class="item-row">
                 <span>User Admin: <strong>${u.username}</strong></span>
-                <button type="button" onclick="deleteApproveUser('${u.username}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button>
+                <button type="button" onclick="deleteApproveUser('${u.username}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus Akses</button>
             </div>`;
     });
 }
@@ -466,6 +475,7 @@ async function deleteApproveUser(username) {
 }
 
 async function loadAdminGuests() {
+    await autoClearOldGuests();
     let guests = [];
     if (supabaseClient) {
         const { data } = await supabaseClient.from('guests').select('*').order('created_at', { ascending: false });
@@ -507,6 +517,7 @@ async function updateGuestStatus(id, status) {
 }
 
 async function loadSuperAdminGuests() {
+    await autoClearOldGuests();
     let guests = [];
     let adminUsers = [];
 
@@ -553,7 +564,7 @@ async function loadSuperAdminGuests() {
                 <div class="action-btns">
                     <button type="button" onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:3px 6px; font-size:0.75rem;">Approve</button>
                     <button type="button" onclick="updateGuestStatus('${g.guest_id}', 'Rejected')" class="btn-danger" style="padding:3px 6px; font-size:0.75rem;">Reject</button>
-                    <button type="button" onclick="deleteGuestRecord('${g.guest_id}')" class="btn-danger" style="padding:3px 6px; font-size:0.75rem; background:#8b0000;">Hapus</button>
+                    <button type="button" onclick="deleteGuestRecord('${g.guest_id}')" class="btn-danger" style="padding:3px 6px; font-size:0.75rem; background:#8b0000;">Hapus Data</button>
                 </div>
             </div>`;
     });
