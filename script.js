@@ -1,4 +1,4 @@
-// Konfigurasi Supabase (Ganti URL & ANON_KEY sesuai project Anda)
+// Konfigurasi Supabase
 const SUPABASE_URL = 'https://tgqadtkvarirvppbgyzu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRncWFkdGt2YXJpcnZwcGJneXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzE4NzcsImV4cCI6MjEwNjAwNzg3N30.DGQAgf0qQ_scIn2XHpWSdTDxmnqr-SLyW-HiQ8WqOG0';
 
@@ -11,7 +11,6 @@ try {
     console.warn('Supabase offline, menggunakan LocalStorage fallback.');
 }
 
-// Default Jenis ID
 const DEFAULT_ID_TYPES = ["KTP", "SIM", "Paspor", "ID Pegawai", "Lainnya"];
 
 // Kamus Multi-Bahasa
@@ -134,7 +133,7 @@ async function loadDropdownData() {
     });
 }
 
-// Registrasi Tamu
+// Registrasi Tamu Baru
 async function handleRegister(e) {
     e.preventDefault();
     const guestId = 'GST-' + Math.floor(100000 + Math.random() * 900000);
@@ -169,7 +168,7 @@ async function handleRegister(e) {
     showView('view-home');
 }
 
-// PERBAIKAN 1: TAMPILAN NOMOR REGISTRASI DAN IDENTITAS ID PADA CEK STATUS KUNJUNGAN
+// PERBAIKAN 1: TAMPILAN LENGKAP NOMOR REGISTRASI DAN ID IDENTITAS
 async function checkStatus() {
     const id = document.getElementById('check-guest-id').value.trim();
     const resDiv = document.getElementById('status-result');
@@ -177,7 +176,7 @@ async function checkStatus() {
 
     if (!id) {
         resDiv.className = 'notif rejected'; 
-        resDiv.innerText = 'Masukkan Nomor ID / Registrasi Tamu terlebih dahulu.'; 
+        resDiv.innerText = 'Masukkan Nomor Registrasi / ID Tamu terlebih dahulu.'; 
         return;
     }
 
@@ -206,12 +205,11 @@ async function checkStatus() {
             statusText = '<span style="color:#856404; font-weight:bold;">MENUNGGU VERIFIKASI (PENDING)</span>';
         }
 
-        // Menampilkan Rincian Lengkap Termasuk Nomor Registrasi & ID Identitas
         let content = `
-            <div style="text-align: left; padding: 5px; line-height: 1.6;">
-                📌 <strong>No. Registrasi Tamu:</strong> <span style="color:#0066cc;">${guest.guest_id}</span><br>
+            <div style="text-align: left; padding: 8px; line-height: 1.6; background:#ffffff; border-radius:6px; margin-bottom:8px;">
+                📌 <strong>No. Registrasi Tamu:</strong> <span style="color:#0066cc; font-size:1.1rem; font-weight:bold;">${guest.guest_id}</span><br>
                 👤 <strong>Nama Lengkap:</strong> ${guest.fullname}<br>
-                🪪 <strong>Identitas:</strong> ${guest.id_type} - ${guest.id_number}<br>
+                🪪 <strong>Jenis & No. ID:</strong> ${guest.id_type} - ${guest.id_number}<br>
                 🏢 <strong>Asal Perusahaan:</strong> ${guest.origin_company}<br>
                 📝 <strong>Tujuan Kunjungan:</strong> ${guest.purpose}<br>
                 📊 <strong>Status Akses:</strong> ${statusText}
@@ -219,18 +217,18 @@ async function checkStatus() {
         `;
 
         if (guest.status === 'Approved') {
-            content += `<div style="margin-top:10px; font-weight:bold; font-size:0.95rem;">🔔 NOTIFIKASI: Akses disetujui! Silakan tunjukkan bukti ini kepada petugas keamanan / resepsionis.</div>`;
+            content += `<div style="font-weight:bold; font-size:0.95rem;">🔔 NOTIFIKASI: Akses disetujui! Silakan tunjukkan bukti ini kepada resepsionis / satpam.</div>`;
         } else if (guest.status === 'Rejected') {
-            content += `<div style="margin-top:10px; font-weight:bold; font-size:0.95rem;">❌ NOTIFIKASI: Kunjungan Anda ditolak.</div>`;
+            content += `<div style="font-weight:bold; font-size:0.95rem;">❌ NOTIFIKASI: Kunjungan Anda ditolak.</div>`;
         } else {
-            content += `<div style="margin-top:10px; font-size:0.95rem;">⏳ Silakan tunggu verifikasi persetujuan dari Admin.</div>`;
+            content += `<div style="font-size:0.95rem;">⏳ Silakan tunggu verifikasi persetujuan dari Admin.</div>`;
         }
 
         resDiv.innerHTML = content;
     }
 }
 
-// PERBAIKAN 2: OTENTIKASI & LOGIKA LOGIN ADMIN / SUPER ADMIN
+// PERBAIKAN 2: LOGIN ADMIN (admin/admin123) & SUPER ADMIN (superadmin/super123)
 let currentUserRole = null;
 
 async function handleLogin(e) {
@@ -244,7 +242,7 @@ async function handleLogin(e) {
 
     let loggedIn = null;
 
-    // 1. Coba Auth via Supabase Database
+    // 1. Coba Auth via Supabase
     if (supabaseClient) {
         try {
             const { data, error } = await supabaseClient
@@ -262,23 +260,25 @@ async function handleLogin(e) {
         }
     }
 
-    // 2. Fallback / Cadangan Otomatis ke LocalStorage & Akun Default
+    // 2. Fallback Cadangan ke LocalStorage & Akun Default
     if (!loggedIn) {
         let users = JSON.parse(localStorage.getItem('users') || '[]');
         
-        // Buat akun default jika belum tersimpan
-        if (users.length === 0) {
-            users = [
-                { username: "superadmin", password: "super123", role: "super_admin" },
-                { username: "admin", password: "admin123", role: "admin" }
-            ];
-            localStorage.setItem('users', JSON.stringify(users));
-        }
+        const defaultUsers = [
+            { username: "superadmin", password: "super123", role: "super_admin" },
+            { username: "admin", password: "admin123", role: "admin" }
+        ];
+
+        defaultUsers.forEach(def => {
+            if (!users.some(u => u.username === def.username)) {
+                users.push(def);
+            }
+        });
+        localStorage.setItem('users', JSON.stringify(users));
 
         loggedIn = users.find(u => u.username === user && u.password === pass);
     }
 
-    // 3. Penanganan Hasil Login
     if (loggedIn) {
         currentUserRole = loggedIn.role;
         document.getElementById('form-login').reset();
@@ -323,7 +323,88 @@ async function handleResetPassword() {
     showView('view-login');
 }
 
-// Admin Dashboard Functions
+// PERBAIKAN 3: TAMBAH AKUN APPROVE BARU OLEH SUPER ADMIN
+async function addApproveUser() {
+    const u = document.getElementById('new-admin-user').value.trim();
+    const p = document.getElementById('new-admin-pass').value.trim();
+    if (!u || !p) return alert('Isi username dan password admin baru.');
+
+    let isSaved = false;
+
+    // 1. Simpan ke Supabase
+    if (supabaseClient) {
+        try {
+            const { error } = await supabaseClient.from('users').insert([{ username: u, password: p, role: 'admin' }]);
+            if (error) {
+                console.error('Database error:', error);
+                alert('Peringatan Database: ' + error.message + '\nMenyimpan ke Penyimpanan Lokal...');
+            } else {
+                isSaved = true;
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    // 2. Simpan juga ke LocalStorage sebagai Cadangan
+    let users = JSON.parse(localStorage.getItem('users') || '[]');
+    if (!users.some(x => x.username === u)) {
+        users.push({ username: u, password: p, role: 'admin' });
+        localStorage.setItem('users', JSON.stringify(users));
+        isSaved = true;
+    } else if (!supabaseClient) {
+        return alert('Username sudah digunakan!');
+    }
+
+    if (isSaved) {
+        document.getElementById('new-admin-user').value = '';
+        document.getElementById('new-admin-pass').value = '';
+        await loadApproveUsers();
+        alert(`Akun Admin Approve "${u}" berhasil ditambahkan!`);
+    }
+}
+
+async function loadApproveUsers() {
+    let users = [];
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('users').select('*').eq('role', 'admin');
+        users = data || [];
+    } else {
+        let arr = JSON.parse(localStorage.getItem('users') || '[]');
+        users = arr.filter(x => x.role === 'admin');
+    }
+
+    const c = document.getElementById('approve-users-list'); 
+    c.innerHTML = '';
+    
+    if (users.length === 0) {
+        c.innerHTML = '<small style="color:#666;">Belum ada akun admin approve tambahan.</small>';
+        return;
+    }
+
+    users.forEach(u => {
+        c.innerHTML += `
+            <div class="item-row">
+                <span>User Admin: <strong>${u.username}</strong></span>
+                <button onclick="deleteApproveUser('${u.username}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus Akses</button>
+            </div>`;
+    });
+}
+
+async function deleteApproveUser(username) {
+    if (confirm(`Hapus akses approve untuk user ${username}?`)) {
+        if (supabaseClient) {
+            await supabaseClient.from('users').delete().eq('username', username);
+        }
+        let users = JSON.parse(localStorage.getItem('users') || '[]');
+        users = users.filter(x => x.username !== username);
+        localStorage.setItem('users', JSON.stringify(users));
+
+        loadApproveUsers();
+    }
+}
+
+// Admin & Super Admin Guests Management
 async function loadAdminGuests() {
     let guests = [];
     if (supabaseClient) {
@@ -362,60 +443,6 @@ async function updateGuestStatus(id, status) {
     }
     if (currentUserRole === 'super_admin') loadSuperAdminGuests();
     else loadAdminGuests();
-}
-
-// Super Admin Functions
-async function addApproveUser() {
-    const u = document.getElementById('new-admin-user').value.trim();
-    const p = document.getElementById('new-admin-pass').value.trim();
-    if (!u || !p) return alert('Isi username dan password admin baru.');
-
-    if (supabaseClient) {
-        const { error } = await supabaseClient.from('users').insert([{ username: u, password: p, role: 'admin' }]);
-        if (error) return alert('Gagal menambah user: ' + error.message);
-    } else {
-        let users = JSON.parse(localStorage.getItem('users') || '[]');
-        if (users.find(x => x.username === u)) return alert('Username sudah digunakan!');
-        users.push({ username: u, password: p, role: 'admin' });
-        localStorage.setItem('users', JSON.stringify(users));
-    }
-    document.getElementById('new-admin-user').value = '';
-    document.getElementById('new-admin-pass').value = '';
-    loadApproveUsers();
-    alert('User Admin Approve berhasil ditambahkan!');
-}
-
-async function loadApproveUsers() {
-    let users = [];
-    if (supabaseClient) {
-        const { data } = await supabaseClient.from('users').select('*').eq('role', 'admin');
-        users = data || [];
-    } else {
-        let arr = JSON.parse(localStorage.getItem('users') || '[]');
-        users = arr.filter(x => x.role === 'admin');
-    }
-    const c = document.getElementById('approve-users-list'); 
-    c.innerHTML = '';
-    users.forEach(u => {
-        c.innerHTML += `
-            <div class="item-row">
-                <span>User Admin: <strong>${u.username}</strong></span>
-                <button onclick="deleteApproveUser('${u.username}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus Akses</button>
-            </div>`;
-    });
-}
-
-async function deleteApproveUser(username) {
-    if (confirm(`Hapus akses approve untuk user ${username}?`)) {
-        if (supabaseClient) {
-            await supabaseClient.from('users').delete().eq('username', username);
-        } else {
-            let users = JSON.parse(localStorage.getItem('users') || '[]');
-            users = users.filter(x => x.username !== username);
-            localStorage.setItem('users', JSON.stringify(users));
-        }
-        loadApproveUsers();
-    }
 }
 
 async function loadSuperAdminGuests() {
@@ -510,7 +537,7 @@ async function resetAllConfigurations() {
     }
 }
 
-// Whitelist PT & Jenis ID Management
+// Whitelist PT & ID Type Management
 async function addApprovedCompany() {
     const c = document.getElementById('new-approved-company').value.trim(); 
     if (!c) return;
