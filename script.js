@@ -1,4 +1,4 @@
-// Konfigurasi Supabase
+// Konfigurasi Supabase (Ganti dengan kredo Supabase Anda)
 const SUPABASE_URL = 'https://tgqadtkvarirvppbgyzu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRncWFkdGt2YXJpcnZwcGJneXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzE4NzcsImV4cCI6MjEwNjAwNzg3N30.DGQAgf0qQ_scIn2XHpWSdTDxmnqr-SLyW-HiQ8WqOG0';
 
@@ -13,7 +13,7 @@ try {
 
 const DEFAULT_ID_TYPES = ["KTP", "SIM", "Paspor", "ID Pegawai", "Lainnya"];
 
-// Kamus Multi-Bahasa
+// Kamus Bahasa
 const dictionary = {
     id: {
         welcome: "Selamat Datang di Portal Tamu",
@@ -168,7 +168,7 @@ async function handleRegister(e) {
     showView('view-home');
 }
 
-// PERBAIKAN 1: TAMPILAN LENGKAP NOMOR REGISTRASI DAN ID IDENTITAS
+// FITUR: MENAMPILKAN NOMOR REGISTRASI DAN ID TAMU PADA CEK STATUS KUNJUNGAN
 async function checkStatus() {
     const id = document.getElementById('check-guest-id').value.trim();
     const resDiv = document.getElementById('status-result');
@@ -206,10 +206,10 @@ async function checkStatus() {
         }
 
         let content = `
-            <div style="text-align: left; padding: 8px; line-height: 1.6; background:#ffffff; border-radius:6px; margin-bottom:8px;">
-                📌 <strong>No. Registrasi Tamu:</strong> <span style="color:#0066cc; font-size:1.1rem; font-weight:bold;">${guest.guest_id}</span><br>
+            <div style="text-align: left; padding: 10px; line-height: 1.7; background:#ffffff; border-radius:6px; margin-bottom:8px; border:1px solid #ddd;">
+                📌 <strong>Nomor Registrasi Tamu:</strong> <span style="color:#0066cc; font-size:1.1rem; font-weight:bold;">${guest.guest_id}</span><br>
                 👤 <strong>Nama Lengkap:</strong> ${guest.fullname}<br>
-                🪪 <strong>Jenis & No. ID:</strong> ${guest.id_type} - ${guest.id_number}<br>
+                🪪 <strong>Jenis & Nomor ID:</strong> ${guest.id_type} - ${guest.id_number}<br>
                 🏢 <strong>Asal Perusahaan:</strong> ${guest.origin_company}<br>
                 📝 <strong>Tujuan Kunjungan:</strong> ${guest.purpose}<br>
                 📊 <strong>Status Akses:</strong> ${statusText}
@@ -228,7 +228,7 @@ async function checkStatus() {
     }
 }
 
-// PERBAIKAN 2: LOGIN ADMIN (admin/admin123) & SUPER ADMIN (superadmin/super123)
+// PERBAIKAN FITUR: LOGIN ADMIN (admin/admin123) & SUPER ADMIN (superadmin/super123)
 let currentUserRole = null;
 
 async function handleLogin(e) {
@@ -236,13 +236,11 @@ async function handleLogin(e) {
     const user = document.getElementById('login-username').value.trim();
     const pass = document.getElementById('login-password').value.trim();
 
-    if (!user || !pass) {
-        return alert('Username dan password wajib diisi!');
-    }
+    if (!user || !pass) return alert('Username dan password wajib diisi!');
 
     let loggedIn = null;
 
-    // 1. Coba Auth via Supabase
+    // 1. Coba Auth melalui Supabase
     if (supabaseClient) {
         try {
             const { data, error } = await supabaseClient
@@ -252,15 +250,13 @@ async function handleLogin(e) {
                 .eq('password', pass)
                 .maybeSingle();
 
-            if (!error && data) {
-                loggedIn = data;
-            }
+            if (!error && data) loggedIn = data;
         } catch (err) {
-            console.warn('Gagal auth via Supabase, beralih ke local storage.');
+            console.warn('Gagal autentikasi Supabase, beralih ke penyimpanan lokal.');
         }
     }
 
-    // 2. Fallback Cadangan ke LocalStorage & Akun Default
+    // 2. Fallback Otomatis ke LocalStorage
     if (!loggedIn) {
         let users = JSON.parse(localStorage.getItem('users') || '[]');
         
@@ -270,9 +266,7 @@ async function handleLogin(e) {
         ];
 
         defaultUsers.forEach(def => {
-            if (!users.some(u => u.username === def.username)) {
-                users.push(def);
-            }
+            if (!users.some(u => u.username === def.username)) users.push(def);
         });
         localStorage.setItem('users', JSON.stringify(users));
 
@@ -323,7 +317,7 @@ async function handleResetPassword() {
     showView('view-login');
 }
 
-// PERBAIKAN 3: TAMBAH AKUN APPROVE BARU OLEH SUPER ADMIN
+// PERBAIKAN FITUR: MENAMBAH AKUN USER APPROVE (ADMIN BARU)
 async function addApproveUser() {
     const u = document.getElementById('new-admin-user').value.trim();
     const p = document.getElementById('new-admin-pass').value.trim();
@@ -336,8 +330,7 @@ async function addApproveUser() {
         try {
             const { error } = await supabaseClient.from('users').insert([{ username: u, password: p, role: 'admin' }]);
             if (error) {
-                console.error('Database error:', error);
-                alert('Peringatan Database: ' + error.message + '\nMenyimpan ke Penyimpanan Lokal...');
+                console.error('Database Error:', error.message);
             } else {
                 isSaved = true;
             }
@@ -352,8 +345,6 @@ async function addApproveUser() {
         users.push({ username: u, password: p, role: 'admin' });
         localStorage.setItem('users', JSON.stringify(users));
         isSaved = true;
-    } else if (!supabaseClient) {
-        return alert('Username sudah digunakan!');
     }
 
     if (isSaved) {
@@ -361,6 +352,8 @@ async function addApproveUser() {
         document.getElementById('new-admin-pass').value = '';
         await loadApproveUsers();
         alert(`Akun Admin Approve "${u}" berhasil ditambahkan!`);
+    } else {
+        alert('Gagal menambah akun admin. Username mungkin sudah digunakan.');
     }
 }
 
@@ -404,7 +397,7 @@ async function deleteApproveUser(username) {
     }
 }
 
-// Admin & Super Admin Guests Management
+// Manajemen Approval & Data Tamu
 async function loadAdminGuests() {
     let guests = [];
     if (supabaseClient) {
@@ -537,7 +530,7 @@ async function resetAllConfigurations() {
     }
 }
 
-// Whitelist PT & ID Type Management
+// Manajemen Whitelist PT & Jenis ID
 async function addApprovedCompany() {
     const c = document.getElementById('new-approved-company').value.trim(); 
     if (!c) return;
