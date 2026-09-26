@@ -11,7 +11,10 @@ try {
     console.warn('Supabase offline, menggunakan LocalStorage fallback.');
 }
 
-// Kamus Multi-Bahasa (Indonesia / English)
+// Default Jenis ID jika database belum memiliki data
+const DEFAULT_ID_TYPES = ["KTP", "SIM", "Paspor", "ID Pegawai", "Lainnya"];
+
+// Kamus Multi-Bahasa
 const dictionary = {
     id: {
         welcome: "Selamat Datang di Portal Tamu",
@@ -20,7 +23,8 @@ const dictionary = {
         gotoStatus: "Cek Status Kunjungan",
         gotoLogin: "Login Admin & Super Admin",
         regTitle: "Registrasi Tamu",
-        fullname: "Nama Lengkap", idType: "Jenis ID", idNumber: "Nomor ID", company: "Asal Instansi / Perusahaan", purpose: "Tujuan Kunjungan", submitReg: "Daftar Sekarang",
+        fullname: "Nama Lengkap", idType: "Jenis ID", idTypePlaceholder: "Pilih Jenis ID",
+        idNumber: "Nomor ID", company: "Asal Instansi / Perusahaan", purpose: "Tujuan Kunjungan", submitReg: "Daftar Sekarang",
         statusTitle: "Cek Status Kunjungan", statusDesc: "Masukkan Nomor Registrasi / ID Tamu Anda untuk memeriksa status approve.", checkStatusBtn: "Cek Status",
         loginTitle: "Login Admin & Super Admin"
     },
@@ -31,7 +35,8 @@ const dictionary = {
         gotoStatus: "Check Visit Status",
         gotoLogin: "Admin & Super Admin Login",
         regTitle: "Guest Registration",
-        fullname: "Full Name", idType: "ID Type", idNumber: "ID Number", company: "Origin Company", purpose: "Purpose of Visit", submitReg: "Register Now",
+        fullname: "Full Name", idType: "ID Type", idTypePlaceholder: "Select ID Type",
+        idNumber: "ID Number", company: "Origin Company", purpose: "Purpose of Visit", submitReg: "Register Now",
         statusTitle: "Check Visit Status", statusDesc: "Enter your Registration Number / Guest ID to check approve status.", checkStatusBtn: "Check Status",
         loginTitle: "Admin & Super Admin Login"
     }
@@ -58,9 +63,12 @@ function changeLanguage() {
     document.getElementById('txt-status-desc').innerText = t.statusDesc;
     document.getElementById('btn-check-status').innerText = t.checkStatusBtn;
     document.getElementById('txt-login-title').innerText = t.loginTitle;
+
+    // Refresh dropdown Jenis ID dengan label bahasa baru
+    loadDropdownData();
 }
 
-// Navigasi Halaman
+// Navigasi Tampilan
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
     document.getElementById(viewId).classList.add('active');
@@ -71,7 +79,7 @@ window.onload = async () => {
     await loadDropdownData();
 };
 
-// Konfigurasi Identitas Website (Nama PT, Logo, Wallpaper)
+// Config Web (Branding)
 async function loadWebSettings() {
     let settings = {};
     if (supabaseClient) {
@@ -98,26 +106,41 @@ async function loadWebSettings() {
     }
 }
 
+// Memuat Data Dropdown Perusahaan Disetujui & Jenis ID
 async function loadDropdownData() {
     let companies = [], idTypes = [];
+
     if (supabaseClient) {
         const compRes = await supabaseClient.from('approved_companies').select('company_name');
-        if (compRes.data) companies = compRes.data.map(c => c.company_name);
+        if (compRes.data && compRes.data.length > 0) {
+            companies = compRes.data.map(c => c.company_name);
+        }
+
         const idRes = await supabaseClient.from('id_types').select('name');
-        if (idRes.data) idTypes = idRes.data.map(i => i.name);
+        if (idRes.data && idRes.data.length > 0) {
+            idTypes = idRes.data.map(i => i.name);
+        } else {
+            idTypes = DEFAULT_ID_TYPES;
+        }
     } else {
         companies = JSON.parse(localStorage.getItem('approved_companies') || '["PT Maju Bersama", "PT Teknologi Nusantara"]');
-        idTypes = JSON.parse(localStorage.getItem('id_types') || '["KTP", "SIM", "Paspor"]');
+        idTypes = JSON.parse(localStorage.getItem('id_types') || JSON.stringify(DEFAULT_ID_TYPES));
     }
 
+    // Populate Datalist Perusahaan
     const datalist = document.getElementById('approved-companies-list');
     datalist.innerHTML = '';
     companies.forEach(c => datalist.innerHTML += `<option value="${c}">`);
 
+    // Populate Select Jenis ID (Perbaikan)
     const idSelect = document.getElementById('reg-id-type');
-    idSelect.innerHTML = '<option value="" disabled selected>Pilih Jenis ID</option>';
+    const placeholderText = dictionary[currentLang].idTypePlaceholder;
+    
+    idSelect.innerHTML = `<option value="" disabled selected>${placeholderText}</option>`;
     idTypes.forEach(id => {
-        let opt = document.createElement('option'); opt.value = id; opt.innerText = id;
+        let opt = document.createElement('option');
+        opt.value = id;
+        opt.innerText = id;
         idSelect.appendChild(opt);
     });
 }
@@ -127,14 +150,20 @@ async function handleRegister(e) {
     e.preventDefault();
     const guestId = 'GST-' + Math.floor(100000 + Math.random() * 900000);
     const compInput = document.getElementById('reg-company').value.trim();
+    const idTypeInput = document.getElementById('reg-id-type').value;
+
+    if (!idTypeInput) {
+        alert("Silakan pilih Jenis ID terlebih dahulu.");
+        return;
+    }
 
     const newGuest = {
         guest_id: guestId,
-        fullname: document.getElementById('reg-name').value,
-        id_type: document.getElementById('reg-id-type').value,
-        id_number: document.getElementById('reg-id-number').value,
+        fullname: document.getElementById('reg-name').value.trim(),
+        id_type: idTypeInput,
+        id_number: document.getElementById('reg-id-number').value.trim(),
         origin_company: compInput,
-        purpose: document.getElementById('reg-purpose').value,
+        purpose: document.getElementById('reg-purpose').value.trim(),
         status: 'Pending'
     };
 
@@ -176,7 +205,7 @@ async function checkStatus() {
     if (!guest) {
         resDiv.className = 'notif rejected'; resDiv.innerText = 'Nomor Registrasi / ID Tamu tidak ditemukan.';
     } else {
-        let msg = `Tamu: <strong>${guest.fullname}</strong> (${guest.origin_company})<br>Status: <strong>${guest.status}</strong>`;
+        let msg = `Tamu: <strong>${guest.fullname}</strong> (${guest.origin_company})<br>Jenis ID: <strong>${guest.id_type}</strong> (${guest.id_number})<br>Status: <strong>${guest.status}</strong>`;
         if (guest.status === 'Approved') {
             resDiv.className = 'notif success'; msg += '<br>🔔 NOTIFIKASI: AKSES DISETUJUI (APPROVED)! Silakan masuk.';
         } else if (guest.status === 'Rejected') {
@@ -188,7 +217,7 @@ async function checkStatus() {
     }
 }
 
-// Authentication & Reset Password (Tanpa Email)
+// Authentication & Reset Password
 let currentUserRole = null;
 
 async function handleLogin(e) {
@@ -256,7 +285,11 @@ async function loadAdminGuests() {
     guests.forEach(g => {
         c.innerHTML += `
             <div class="item-row">
-                <div><strong>${g.guest_id}</strong> - ${g.fullname}<br><small>PT: ${g.origin_company} | Status: <b>${g.status}</b></small></div>
+                <div>
+                    <strong>${g.guest_id}</strong> - ${g.fullname}<br>
+                    <small>ID: ${g.id_type} (${g.id_number}) | PT: ${g.origin_company}</small><br>
+                    <small>Status: <b>${g.status}</b></small>
+                </div>
                 <div class="action-btns">
                     <button onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:4px 8px; font-size:0.8rem;">Approve</button>
                     <button onclick="updateGuestStatus('${g.guest_id}', 'Rejected')" class="btn-danger" style="padding:4px 8px; font-size:0.8rem;">Reject</button>
@@ -277,7 +310,7 @@ async function updateGuestStatus(id, status) {
     else loadAdminGuests();
 }
 
-// SUPER ADMIN FULL PRIVILEGES
+// SUPER ADMIN FUNCTIONS
 async function addApproveUser() {
     const u = document.getElementById('new-admin-user').value.trim();
     const p = document.getElementById('new-admin-pass').value.trim();
@@ -345,7 +378,7 @@ async function loadSuperAdminGuests() {
             <div class="item-row">
                 <div>
                     <strong>${g.guest_id}</strong> - ${g.fullname} (${g.origin_company})<br>
-                    <small>Status: <b>${g.status}</b> | Keperluan: ${g.purpose}</small>
+                    <small>ID: ${g.id_type} (${g.id_number}) | Status: <b>${g.status}</b></small>
                 </div>
                 <div class="action-btns">
                     <button onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:3px 6px; font-size:0.75rem;">Approve</button>
@@ -415,7 +448,7 @@ async function resetAllConfigurations() {
     }
 }
 
-// Management Whitelist PT & Jenis ID
+// Management Whitelist PT
 async function addApprovedCompany() {
     const c = document.getElementById('new-approved-company').value.trim(); if (!c) return;
     if (supabaseClient) await supabaseClient.from('approved_companies').insert([{ company_name: c }]);
@@ -437,23 +470,54 @@ async function deleteComp(name) {
     loadManageApprovedCompanies(); loadDropdownData();
 }
 
+// Management Jenis ID (Tambah & Hapus oleh Super Admin)
 async function addIdType() {
-    const t = document.getElementById('new-id-type').value.trim(); if (!t) return;
-    if (supabaseClient) await supabaseClient.from('id_types').insert([{ name: t }]);
-    else { let arr = JSON.parse(localStorage.getItem('id_types') || '[]'); arr.push(t); localStorage.setItem('id_types', JSON.stringify(arr)); }
-    loadManageIdTypes(); loadDropdownData(); document.getElementById('new-id-type').value = '';
+    const t = document.getElementById('new-id-type').value.trim();
+    if (!t) return;
+
+    if (supabaseClient) {
+        const { error } = await supabaseClient.from('id_types').insert([{ name: t }]);
+        if (error) alert('Gagal menambah jenis ID: ' + error.message);
+    } else {
+        let arr = JSON.parse(localStorage.getItem('id_types') || JSON.stringify(DEFAULT_ID_TYPES));
+        if (!arr.includes(t)) arr.push(t);
+        localStorage.setItem('id_types', JSON.stringify(arr));
+    }
+    loadManageIdTypes();
+    loadDropdownData();
+    document.getElementById('new-id-type').value = '';
 }
 
 async function loadManageIdTypes() {
     let types = [];
-    if (supabaseClient) { const { data } = await supabaseClient.from('id_types').select('*'); types = data || []; }
-    else { let arr = JSON.parse(localStorage.getItem('id_types') || '[]'); types = arr.map(t => ({ name: t })); }
-    const container = document.getElementById('id-types-manage-list'); container.innerHTML = '';
-    types.forEach(t => container.innerHTML += `<div class="item-row"><span>${t.name}</span><button onclick="deleteId('${t.name}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button></div>`);
+    if (supabaseClient) {
+        const { data } = await supabaseClient.from('id_types').select('*');
+        types = data || [];
+    } else {
+        let arr = JSON.parse(localStorage.getItem('id_types') || JSON.stringify(DEFAULT_ID_TYPES));
+        types = arr.map(t => ({ name: t }));
+    }
+    const container = document.getElementById('id-types-manage-list');
+    container.innerHTML = '';
+    types.forEach(t => {
+        container.innerHTML += `
+            <div class="item-row">
+                <span>Jenis ID: <strong>${t.name}</strong></span>
+                <button onclick="deleteId('${t.name}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button>
+            </div>`;
+    });
 }
 
 async function deleteId(name) {
-    if (supabaseClient) await supabaseClient.from('id_types').delete().eq('name', name);
-    else { let arr = JSON.parse(localStorage.getItem('id_types') || '[]'); arr = arr.filter(t => t !== name); localStorage.setItem('id_types', JSON.stringify(arr)); }
-    loadManageIdTypes(); loadDropdownData();
+    if (confirm(`Hapus Jenis ID "${name}" dari daftar pilihan?`)) {
+        if (supabaseClient) {
+            await supabaseClient.from('id_types').delete().eq('name', name);
+        } else {
+            let arr = JSON.parse(localStorage.getItem('id_types') || JSON.stringify(DEFAULT_ID_TYPES));
+            arr = arr.filter(t => t !== name);
+            localStorage.setItem('id_types', JSON.stringify(arr));
+        }
+        loadManageIdTypes();
+        loadDropdownData();
+    }
 }
