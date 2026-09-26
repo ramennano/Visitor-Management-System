@@ -68,10 +68,12 @@ function changeLanguage() {
 
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-    document.getElementById(viewId).classList.add('active');
-    
-    // Simpan view aktif ke sessionStorage agar tidak berubah saat halaman direfresh
-    sessionStorage.setItem('currentActiveView', viewId);
+    const targetView = document.getElementById(viewId);
+    if (targetView) {
+        targetView.classList.add('active');
+        // Simpan view aktif ke sessionStorage agar tetap bertahan saat halaman di-refresh
+        sessionStorage.setItem('currentActiveView', viewId);
+    }
 }
 
 // PERSISTENSI SAAT PAGE LOAD & AUTO CLEAR DATA > 1 HARI
@@ -96,7 +98,7 @@ window.onload = async () => {
             showView(savedView || 'view-admin');
             loadAdminGuests();
         }
-    } else if (savedView && savedView !== 'view-admin' && savedView !== 'view-superadmin') {
+    } else if (savedView) {
         showView(savedView);
     }
 };
@@ -108,7 +110,6 @@ async function autoClearOldGuests() {
 
     if (supabaseClient) {
         try {
-            // Ambil data tamu lalu filter yang sudah lewat 1 hari
             const { data: guests } = await supabaseClient.from('guests').select('*');
             if (guests) {
                 for (let g of guests) {
@@ -173,19 +174,22 @@ async function loadDropdownData() {
     }
 
     const datalist = document.getElementById('approved-companies-list');
-    datalist.innerHTML = '';
-    companies.forEach(c => datalist.innerHTML += `<option value="${c}">`);
+    if (datalist) {
+        datalist.innerHTML = '';
+        companies.forEach(c => datalist.innerHTML += `<option value="${c}">`);
+    }
 
     const idSelect = document.getElementById('reg-id-type');
-    const placeholderText = dictionary[currentLang].idTypePlaceholder;
-    
-    idSelect.innerHTML = `<option value="" disabled selected>${placeholderText}</option>`;
-    idTypes.forEach(id => {
-        let opt = document.createElement('option');
-        opt.value = id;
-        opt.innerText = id;
-        idSelect.appendChild(opt);
-    });
+    if (idSelect) {
+        const placeholderText = dictionary[currentLang].idTypePlaceholder;
+        idSelect.innerHTML = `<option value="" disabled selected>${placeholderText}</option>`;
+        idTypes.forEach(id => {
+            let opt = document.createElement('option');
+            opt.value = id;
+            opt.innerText = id;
+            idSelect.appendChild(opt);
+        });
+    }
 }
 
 // Registrasi Tamu Baru dengan Auto-Fill & Auto-Redirect ke Cek Status
@@ -219,7 +223,7 @@ async function handleRegister(e) {
         if (!comps.includes(compInput)) { comps.push(compInput); localStorage.setItem('approved_companies', JSON.stringify(comps)); }
     }
 
-    // Auto-fill ke form cek status
+    // Simpan ke input check-guest-id agar otomatis terisi
     const statusInput = document.getElementById('check-guest-id');
     if (statusInput) {
         statusInput.value = guestId;
@@ -232,7 +236,7 @@ async function handleRegister(e) {
     checkStatus();
 }
 
-// PERBAIKAN PENCARIAN STATUS (Case-insensitive & Solusi "Tidak Ditemukan")
+// PENCARIAN STATUS (Case-insensitive & Solusi "Tidak Ditemukan")
 async function checkStatus() {
     const rawId = document.getElementById('check-guest-id').value;
     const id = rawId ? rawId.trim() : '';
@@ -247,10 +251,8 @@ async function checkStatus() {
 
     let guest = null;
     if (supabaseClient) {
-        // Coba pencarian persis
         let { data } = await supabaseClient.from('guests').select('*').eq('guest_id', id).maybeSingle();
         if (!data) {
-            // Coba pencarian dengan huruf besar/kecil (case-insensitive fallback)
             let { data: allGuests } = await supabaseClient.from('guests').select('*');
             if (allGuests) {
                 data = allGuests.find(g => g.guest_id.toLowerCase() === id.toLowerCase() || g.id_number.toLowerCase() === id.toLowerCase());
@@ -304,13 +306,13 @@ async function checkStatus() {
     }
 }
 
-// LOGIN ADMIN & SUPER ADMIN (Tanpa gangguan input password/danger flag)
+// LOGIN ADMIN & SUPER ADMIN (Input aman tanpa filter ketat password)
 let currentUserRole = null;
 
 async function handleLogin(e) {
     e.preventDefault();
     const user = document.getElementById('login-username').value.trim();
-    const pass = document.getElementById('login-password').value; // Password dibiarkan tanpa trim ketat demi kompatibilitas karakter khusus
+    const pass = document.getElementById('login-password').value;
 
     if (!user || !pass) return alert('Username dan password wajib diisi!');
 
@@ -421,7 +423,7 @@ async function addApproveUser() {
         document.getElementById('new-admin-user').value = '';
         document.getElementById('new-admin-pass').value = '';
         await loadApproveUsers();
-        await loadSuperAdminGuests(); // Memperbarui daftar di manajemen hak penuh
+        await loadSuperAdminGuests();
         alert(`Akun Admin Approve "${u}" berhasil ditambahkan!`);
     } else {
         alert('Gagal menambah akun admin. Username mungkin sudah digunakan.');
@@ -439,6 +441,7 @@ async function loadApproveUsers() {
     }
 
     const c = document.getElementById('approve-users-list'); 
+    if (!c) return;
     c.innerHTML = '';
     
     if (users.length === 0) {
@@ -469,7 +472,7 @@ async function deleteApproveUser(username) {
     }
 }
 
-// DASHBOARD ADMIN & SUPER ADMIN GUESTS
+// DASHBOARD ADMIN
 async function loadAdminGuests() {
     let guests = [];
     if (supabaseClient) {
@@ -480,6 +483,7 @@ async function loadAdminGuests() {
     }
 
     const c = document.getElementById('admin-guest-container'); 
+    if (!c) return;
     c.innerHTML = '';
     guests.forEach(g => {
         c.innerHTML += `
@@ -510,7 +514,7 @@ async function updateGuestStatus(id, status) {
     else loadAdminGuests();
 }
 
-// MENAMPILKAN DATA MANAJEMEN USER APPROVE PADA HAK PENUH / KONTROL SUPER ADMIN
+// DASHBOARD SUPER ADMIN & TAMPILKAN USER APPROVE DI HAK PENUH
 async function loadSuperAdminGuests() {
     let guests = [];
     let adminUsers = [];
@@ -526,9 +530,10 @@ async function loadSuperAdminGuests() {
     }
 
     const c = document.getElementById('superadmin-guest-container'); 
+    if (!c) return;
     c.innerHTML = '';
 
-    // Bagian Informasi Manajemen User Approve yang Aktif
+    // Tampilkan daftar manajemen akses user approve di bagian Hak Penuh Persetujuan[cite: 19]
     let adminListHtml = `<div style="background:#f9f9f9; padding:10px; border-radius:6px; margin-bottom:12px; border:1px solid #ddd;">
         <strong>👥 Daftar Manajemen Akses User Approve Aktif:</strong><ul style="margin:5px 0 0 15px; padding:0; font-size:0.9rem;">`;
     
@@ -654,6 +659,7 @@ async function loadManageApprovedCompanies() {
         comps = arr.map(c => ({ company_name: c })); 
     }
     const container = document.getElementById('approved-companies-manage-list'); 
+    if (!container) return;
     container.innerHTML = '';
     comps.forEach(c => container.innerHTML += `<div class="item-row"><span>${c.company_name}</span><button onclick="deleteComp('${c.company_name}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button></div>`);
 }
@@ -696,6 +702,7 @@ async function loadManageIdTypes() {
         types = arr.map(t => ({ name: t }));
     }
     const container = document.getElementById('id-types-manage-list');
+    if (!container) return;
     container.innerHTML = '';
     types.forEach(t => {
         container.innerHTML += `
