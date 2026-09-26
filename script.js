@@ -71,9 +71,26 @@ function showView(viewId) {
     document.getElementById(viewId).classList.add('active');
 }
 
+// FITUR: MEMPERTAHANKAN SESI SAAT HALAMAN DI-REFRESH
 window.onload = async () => {
     await loadWebSettings();
     await loadDropdownData();
+
+    // Cek apakah ada sesi admin / super admin yang tersimpan sebelum refresh
+    const savedRole = sessionStorage.getItem('currentUserRole');
+    if (savedRole) {
+        currentUserRole = savedRole;
+        if (currentUserRole === 'super_admin') {
+            showView('view-superadmin');
+            loadApproveUsers();
+            loadSuperAdminGuests();
+            loadManageApprovedCompanies();
+            loadManageIdTypes();
+        } else if (currentUserRole === 'admin') {
+            showView('view-admin');
+            loadAdminGuests();
+        }
+    }
 };
 
 async function loadWebSettings() {
@@ -163,7 +180,6 @@ async function handleRegister(e) {
         if (!comps.includes(compInput)) { comps.push(compInput); localStorage.setItem('approved_companies', JSON.stringify(comps)); }
     }
 
-    // FITUR AUTO-FILL: Masukkan nomor registrasi otomatis ke kolom cek status
     const statusInput = document.getElementById('check-guest-id');
     if (statusInput) {
         statusInput.value = guestId;
@@ -172,12 +188,10 @@ async function handleRegister(e) {
     alert(`Registrasi Berhasil!\n\nNomor Registrasi Tamu Anda: ${guestId}\nKode telah otomatis dimasukkan ke menu Cek Status.`);
     document.getElementById('form-register').reset();
     
-    // Langsung arahkan ke view cek status agar tamu bisa langsung melihat statusnya
     showView('view-status');
-    checkStatus(); // Panggil otomatis pengecekan status
+    checkStatus();
 }
 
-// FITUR: MENAMPILKAN NOMOR REGISTRASI DAN ID TAMU PADA CEK STATUS KUNJUNGAN
 async function checkStatus() {
     const id = document.getElementById('check-guest-id').value.trim();
     const resDiv = document.getElementById('status-result');
@@ -237,7 +251,6 @@ async function checkStatus() {
     }
 }
 
-// PERBAIKAN FITUR: LOGIN ADMIN (admin/admin123) & SUPER ADMIN (superadmin/super123)
 let currentUserRole = null;
 
 async function handleLogin(e) {
@@ -249,7 +262,6 @@ async function handleLogin(e) {
 
     let loggedIn = null;
 
-    // 1. Coba Auth melalui Supabase
     if (supabaseClient) {
         try {
             const { data, error } = await supabaseClient
@@ -265,7 +277,6 @@ async function handleLogin(e) {
         }
     }
 
-    // 2. Fallback Otomatis ke LocalStorage
     if (!loggedIn) {
         let users = JSON.parse(localStorage.getItem('users') || '[]');
         
@@ -284,6 +295,10 @@ async function handleLogin(e) {
 
     if (loggedIn) {
         currentUserRole = loggedIn.role;
+        
+        // Simpan sesi login ke sessionStorage agar tidak hilang saat di-refresh
+        sessionStorage.setItem('currentUserRole', currentUserRole);
+
         document.getElementById('form-login').reset();
         
         if (currentUserRole === 'super_admin') {
@@ -303,6 +318,8 @@ async function handleLogin(e) {
 
 function logout() { 
     currentUserRole = null; 
+    // Hapus sesi saat logout agar kembali bersih ke halaman utama
+    sessionStorage.removeItem('currentUserRole'); 
     showView('view-home'); 
 }
 
@@ -326,7 +343,6 @@ async function handleResetPassword() {
     showView('view-login');
 }
 
-// PERBAIKAN FITUR: MENAMBAH AKUN USER APPROVE (ADMIN BARU)
 async function addApproveUser() {
     const u = document.getElementById('new-admin-user').value.trim();
     const p = document.getElementById('new-admin-pass').value.trim();
@@ -334,7 +350,6 @@ async function addApproveUser() {
 
     let isSaved = false;
 
-    // 1. Simpan ke Supabase
     if (supabaseClient) {
         try {
             const { error } = await supabaseClient.from('users').insert([{ username: u, password: p, role: 'admin' }]);
@@ -348,7 +363,6 @@ async function addApproveUser() {
         }
     }
 
-    // 2. Simpan juga ke LocalStorage sebagai Cadangan
     let users = JSON.parse(localStorage.getItem('users') || '[]');
     if (!users.some(x => x.username === u)) {
         users.push({ username: u, password: p, role: 'admin' });
@@ -406,7 +420,6 @@ async function deleteApproveUser(username) {
     }
 }
 
-// Manajemen Approval & Data Tamu
 async function loadAdminGuests() {
     let guests = [];
     if (supabaseClient) {
@@ -539,7 +552,6 @@ async function resetAllConfigurations() {
     }
 }
 
-// Manajemen Whitelist PT & Jenis ID
 async function addApprovedCompany() {
     const c = document.getElementById('new-approved-company').value.trim(); 
     if (!c) return;
@@ -607,7 +619,6 @@ async function loadManageIdTypes() {
     }
     const container = document.getElementById('id-types-manage-list');
     container.innerHTML = '';
-    types.getTokenList = []; // Clean render helper
     types.forEach(t => {
         container.innerHTML += `
             <div class="item-row">
