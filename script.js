@@ -1,6 +1,6 @@
-// Konfigurasi Supabase (Ganti dengan kredensial Supabase Anda)
-const SUPABASE_URL = 'https://tgqadtkvarirvppbgyzu.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRncWFkdGt2YXJpcnZwcGJneXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzE4NzcsImV4cCI6MjEwNjAwNzg3N30.DGQAgf0qQ_scIn2XHpWSdTDxmnqr-SLyW-HiQ8WqOG0';
+// Konfigurasi Supabase (Ganti dengan kredensial Supabase Anda)[cite: 19]
+const SUPABASE_URL = 'https://tgqadtkvarirvppbgyzu.supabase.co';[cite: 19]
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRncWFkdGt2YXJpcnZwcGJneXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzE4NzcsImV4cCI6MjEwNjAwNzg3N30.DGQAgf0qQ_scIn2XHpWSdTDxmnqr-SLyW-HiQ8WqOG0';[cite: 19]
 
 let supabaseClient = null;
 try {
@@ -42,8 +42,6 @@ const dictionary = {
 };
 
 let currentLang = 'id';
-let currentUserRole = null;
-let currentUsername = null;
 
 function changeLanguage() {
     currentLang = document.getElementById('lang-select').value;
@@ -68,33 +66,26 @@ function changeLanguage() {
     loadDropdownData();
 }
 
-// Fungsi Navigasi View dengan Menyimpan Sesi Aktif
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
     document.getElementById(viewId).classList.add('active');
-    sessionStorage.setItem('currentView', viewId);
+    
+    // Simpan view aktif ke sessionStorage agar tidak berubah saat halaman direfresh
+    sessionStorage.setItem('currentActiveView', viewId);
 }
 
-// Pemuatan Awal & Pemulihan Sesi Saat Refresh
+// PERSISTENSI SAAT PAGE LOAD & AUTO CLEAR DATA > 1 HARI
 window.onload = async () => {
     await loadWebSettings();
     await loadDropdownData();
-    await autoClearOldGuests(); // Jalankan pembersihan data > 1 hari
+    await autoClearOldGuests();
 
-    // Pulihkan status sesi login & nomor cek status jika ada
+    // Pulihkan Sesi User / Role Admin atau Super Admin jika ada
     const savedRole = sessionStorage.getItem('currentUserRole');
-    const savedUser = sessionStorage.getItem('currentUsername');
-    const savedView = sessionStorage.getItem('currentView');
-    const savedGuestId = sessionStorage.getItem('lastGuestId');
-
-    if (savedGuestId) {
-        const statusInput = document.getElementById('check-guest-id');
-        if (statusInput) statusInput.value = savedGuestId;
-    }
+    const savedView = sessionStorage.getItem('currentActiveView');
 
     if (savedRole) {
         currentUserRole = savedRole;
-        currentUsername = savedUser;
         if (currentUserRole === 'super_admin') {
             showView(savedView || 'view-superadmin');
             loadApproveUsers();
@@ -105,13 +96,40 @@ window.onload = async () => {
             showView(savedView || 'view-admin');
             loadAdminGuests();
         }
-    } else if (savedView && savedView !== 'view-login' && savedView !== 'view-admin' && savedView !== 'view-superadmin') {
+    } else if (savedView && savedView !== 'view-admin' && savedView !== 'view-superadmin') {
         showView(savedView);
-        if (savedView === 'view-status' && savedGuestId) {
-            checkStatus();
-        }
     }
 };
+
+// FUNGSI AUTO CLEAR DATA TAMU LEBIH DARI 1 HARI (24 Jam)
+async function autoClearOldGuests() {
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const now = new Date().getTime();
+
+    if (supabaseClient) {
+        try {
+            // Ambil data tamu lalu filter yang sudah lewat 1 hari
+            const { data: guests } = await supabaseClient.from('guests').select('*');
+            if (guests) {
+                for (let g of guests) {
+                    const createdTime = new Date(g.created_at || Date.now()).getTime();
+                    if (now - createdTime > oneDayMs) {
+                        await supabaseClient.from('guests').delete().eq('guest_id', g.guest_id);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Gagal membersihkan data cloud otomatis:', e);
+        }
+    } else {
+        let guests = JSON.parse(localStorage.getItem('guests') || '[]');
+        guests = guests.filter(g => {
+            const createdTime = new Date(g.created_at || Date.now()).getTime();
+            return (now - createdTime) <= oneDayMs;
+        });
+        localStorage.setItem('guests', JSON.stringify(guests));
+    }
+}
 
 async function loadWebSettings() {
     let settings = {};
@@ -170,24 +188,7 @@ async function loadDropdownData() {
     });
 }
 
-// Auto-Clear Data Tamu Setelah 1 Hari (24 Jam)
-async function autoClearOldGuests() {
-    const oneDayAgo = new Date().getTime() - (24 * 60 * 60 * 1000);
-    if (supabaseClient) {
-        // Hapus data dari supabase jika created_at > 1 hari
-        const isoString = new Date(oneDayAgo).toISOString();
-        await supabaseClient.from('guests').delete().lt('created_at', isoString);
-    } else {
-        let guests = JSON.parse(localStorage.getItem('guests') || '[]');
-        guests = guests.filter(g => {
-            const guestTime = new Date(g.created_at || Date.now()).getTime();
-            return guestTime >= oneDayAgo;
-        });
-        localStorage.setItem('guests', JSON.stringify(guests));
-    }
-}
-
-// Registrasi Tamu Baru
+// Registrasi Tamu Baru dengan Auto-Fill & Auto-Redirect ke Cek Status
 async function handleRegister(e) {
     e.preventDefault();
     const guestId = 'GST-' + Math.floor(100000 + Math.random() * 900000);
@@ -204,7 +205,6 @@ async function handleRegister(e) {
         origin_company: compInput,
         purpose: document.getElementById('reg-purpose').value.trim(),
         status: 'Pending',
-        approved_by: '-',
         created_at: new Date().toISOString()
     };
 
@@ -214,28 +214,28 @@ async function handleRegister(e) {
         await supabaseClient.from('guests').insert([newGuest]);
     } else {
         let guests = JSON.parse(localStorage.getItem('guests') || '[]');
-        guests.push(newGuest); 
-        localStorage.setItem('guests', JSON.stringify(guests));
+        guests.push(newGuest); localStorage.setItem('guests', JSON.stringify(guests));
         let comps = JSON.parse(localStorage.getItem('approved_companies') || '[]');
         if (!comps.includes(compInput)) { comps.push(compInput); localStorage.setItem('approved_companies', JSON.stringify(comps)); }
     }
 
-    // Simpan otomatis ke session dan isi form cek status
-    sessionStorage.setItem('lastGuestId', guestId);
+    // Auto-fill ke form cek status
     const statusInput = document.getElementById('check-guest-id');
-    if (statusInput) statusInput.value = guestId;
+    if (statusInput) {
+        statusInput.value = guestId;
+    }
 
-    alert(`Registrasi Berhasil!\n\nNomor Registrasi Tamu Anda: ${guestId}\nKode telah otomatis dimasukkan ke menu Cek Status.`);
+    alert(`Registrasi Berhasil!\n\nNomor Registrasi Tamu Anda: ${guestId}\nKode otomatis dimasukkan ke menu Cek Status.`);
     document.getElementById('form-register').reset();
     
     showView('view-status');
     checkStatus();
 }
 
-// Perbaikan Pencarian Status (Case-Insensitive & Mengatasi Tidak Ditemukan)
+// PERBAIKAN PENCARIAN STATUS (Case-insensitive & Solusi "Tidak Ditemukan")
 async function checkStatus() {
-    const inputField = document.getElementById('check-guest-id');
-    const id = inputField ? inputField.value.trim() : '';
+    const rawId = document.getElementById('check-guest-id').value;
+    const id = rawId ? rawId.trim() : '';
     const resDiv = document.getElementById('status-result');
     resDiv.style.display = 'block';
 
@@ -245,55 +245,72 @@ async function checkStatus() {
         return;
     }
 
-    sessionStorage.setItem('lastGuestId', id);
-
     let guest = null;
     if (supabaseClient) {
-        // Cek secara presisi atau ilike untuk menghindari kegagalan huruf besar/kecil
-        const { data } = await supabaseClient.from('guests').select('*').ilike('guest_id', id).maybeSingle();
+        // Coba pencarian persis
+        let { data } = await supabaseClient.from('guests').select('*').eq('guest_id', id).maybeSingle();
+        if (!data) {
+            // Coba pencarian dengan huruf besar/kecil (case-insensitive fallback)
+            let { data: allGuests } = await supabaseClient.from('guests').select('*');
+            if (allGuests) {
+                data = allGuests.find(g => g.guest_id.toLowerCase() === id.toLowerCase() || g.id_number.toLowerCase() === id.toLowerCase());
+            }
+        }
         guest = data;
-    }
-    
-    if (!guest) {
-        let guests = JSON.parse(localStorage.getItem('guests') || '[]');
-        guest = guests.find(g => g.guest_id.toLowerCase() === id.toLowerCase());
+    } else {
+        const guests = JSON.parse(localStorage.getItem('guests') || '[]');
+        guest = guests.find(g => g.guest_id.toLowerCase() === id.toLowerCase() || g.id_number.toLowerCase() === id.toLowerCase());
     }
 
     if (!guest) {
-        resDiv.className = 'notif rejected'; 
-        resDiv.innerHTML = `❌ Nomor Registrasi / ID Tamu <strong>"${id}"</strong> tidak ditemukan. Pastikan kode yang dimasukkan benar.`;
+        resDiv.innerHTML = `
+            <div class="notif rejected">
+                ❌ Nomor Registrasi / ID Tamu <strong>"${id}"</strong> tidak ditemukan. Pastikan kode yang dimasukkan sudah benar.
+            </div>`;
     } else {
         let statusText = '';
+        let badgeStyle = '';
         if (guest.status === 'Approved') {
-            resDiv.className = 'notif success';
+            badgeStyle = 'background-color: #28a745; color: #ffffff;';
             statusText = '<span style="color:#155724; font-weight:bold;">DISETUJUI (APPROVED)</span>';
         } else if (guest.status === 'Rejected') {
-            resDiv.className = 'notif rejected';
+            badgeStyle = 'background-color: #dc3545; color: #ffffff;';
             statusText = '<span style="color:#721c24; font-weight:bold;">DITOLAK (REJECTED)</span>';
         } else {
-            resDiv.className = 'notif pending';
+            badgeStyle = 'background-color: #ffc107; color: #212529;';
             statusText = '<span style="color:#856404; font-weight:bold;">MENUNGGU VERIFIKASI (PENDING)</span>';
         }
 
-        resDiv.innerHTML = `
-            <div style="text-align: left; padding: 10px; line-height: 1.7; background:#ffffff; border-radius:6px; margin-bottom:8px; border:1px solid #ddd; color:#333;">
+        let content = `
+            <div style="text-align: left; padding: 12px; line-height: 1.7; background:#ffffff; border-radius:6px; border:1px solid #ddd;">
                 📌 <strong>Nomor Registrasi Tamu:</strong> <span style="color:#0066cc; font-size:1.1rem; font-weight:bold;">${guest.guest_id}</span><br>
                 👤 <strong>Nama Lengkap:</strong> ${guest.fullname}<br>
                 🪪 <strong>Jenis & Nomor ID:</strong> ${guest.id_type} - ${guest.id_number}<br>
                 🏢 <strong>Asal Perusahaan:</strong> ${guest.origin_company}<br>
                 📝 <strong>Tujuan Kunjungan:</strong> ${guest.purpose}<br>
-                👨‍💻 <div><strong>Disetujui/Diproses oleh Admin:</strong> <span style="color:#007bff; font-weight:600;">${guest.approved_by || 'Belum diverifikasi'}</span></div>
-                📊 <strong>Status Akses:</strong> ${statusText}
+                📊 <strong>Status Akses:</strong> <span style="padding: 3px 8px; border-radius: 4px; ${badgeStyle}">${statusText}</span>
             </div>
         `;
+
+        if (guest.status === 'Approved') {
+            content += `<div style="margin-top:10px; font-weight:bold; font-size:0.95rem;">🔔 NOTIFIKASI: Akses disetujui! Tunjukkan bukti ini kepada resepsionis / satpam.</div>`;
+        } else if (guest.status === 'Rejected') {
+            content += `<div style="margin-top:10px; font-weight:bold; font-size:0.95rem;">❌ NOTIFIKASI: Kunjungan Anda ditolak.</div>`;
+        } else {
+            content += `<div style="margin-top:10px; font-size:0.95rem;">⏳ Silakan tunggu verifikasi persetujuan dari Admin.</div>`;
+        }
+
+        resDiv.innerHTML = content;
     }
 }
 
-// Login Admin & Super Admin
+// LOGIN ADMIN & SUPER ADMIN (Tanpa gangguan input password/danger flag)
+let currentUserRole = null;
+
 async function handleLogin(e) {
     e.preventDefault();
     const user = document.getElementById('login-username').value.trim();
-    const pass = document.getElementById('login-password').value.trim();
+    const pass = document.getElementById('login-password').value; // Password dibiarkan tanpa trim ketat demi kompatibilitas karakter khusus
 
     if (!user || !pass) return alert('Username dan password wajib diisi!');
 
@@ -310,7 +327,7 @@ async function handleLogin(e) {
 
             if (!error && data) loggedIn = data;
         } catch (err) {
-            console.warn('Gagal autentikasi Supabase, beralih ke penyimpanan lokal.');
+            console.warn('Gagal auth via Supabase, beralih ke local storage.');
         }
     }
 
@@ -331,12 +348,7 @@ async function handleLogin(e) {
 
     if (loggedIn) {
         currentUserRole = loggedIn.role;
-        currentUsername = loggedIn.username;
-
-        // Simpan sesi aktif ke sessionStorage
         sessionStorage.setItem('currentUserRole', currentUserRole);
-        sessionStorage.setItem('currentUsername', currentUsername);
-
         document.getElementById('form-login').reset();
         
         if (currentUserRole === 'super_admin') {
@@ -356,14 +368,14 @@ async function handleLogin(e) {
 
 function logout() { 
     currentUserRole = null; 
-    currentUsername = null;
-    sessionStorage.clear(); // Bersihkan seluruh sesi tersimpan
+    sessionStorage.removeItem('currentUserRole');
+    sessionStorage.removeItem('currentActiveView');
     showView('view-home'); 
 }
 
 async function handleResetPassword() {
     const user = document.getElementById('reset-username').value.trim();
-    const newPass = document.getElementById('reset-new-password').value.trim();
+    const newPass = document.getElementById('reset-new-password').value;
     if (!user || !newPass) return alert('Lengkapi username dan password baru!');
 
     if (supabaseClient) {
@@ -381,13 +393,14 @@ async function handleResetPassword() {
     showView('view-login');
 }
 
-// Tambah Akun Approve
+// MANAJEMEN USER APPROVE
 async function addApproveUser() {
     const u = document.getElementById('new-admin-user').value.trim();
-    const p = document.getElementById('new-admin-pass').value.trim();
+    const p = document.getElementById('new-admin-pass').value;
     if (!u || !p) return alert('Isi username dan password admin baru.');
 
     let isSaved = false;
+
     if (supabaseClient) {
         try {
             const { error } = await supabaseClient.from('users').insert([{ username: u, password: p, role: 'admin' }]);
@@ -408,6 +421,7 @@ async function addApproveUser() {
         document.getElementById('new-admin-user').value = '';
         document.getElementById('new-admin-pass').value = '';
         await loadApproveUsers();
+        await loadSuperAdminGuests(); // Memperbarui daftar di manajemen hak penuh
         alert(`Akun Admin Approve "${u}" berhasil ditambahkan!`);
     } else {
         alert('Gagal menambah akun admin. Username mungkin sudah digunakan.');
@@ -449,13 +463,14 @@ async function deleteApproveUser(username) {
         let users = JSON.parse(localStorage.getItem('users') || '[]');
         users = users.filter(x => x.username !== username);
         localStorage.setItem('users', JSON.stringify(users));
+
         loadApproveUsers();
+        loadSuperAdminGuests();
     }
 }
 
-// Manajemen Guest & Status Update (Menyertakan Info Siapa yang Meng-approve)
+// DASHBOARD ADMIN & SUPER ADMIN GUESTS
 async function loadAdminGuests() {
-    await autoClearOldOlderGuestsIfAny();
     let guests = [];
     if (supabaseClient) {
         const { data } = await supabaseClient.from('guests').select('*').order('created_at', { ascending: false });
@@ -472,7 +487,7 @@ async function loadAdminGuests() {
                 <div>
                     <strong>${g.guest_id}</strong> - ${g.fullname}<br>
                     <small>ID: ${g.id_type} (${g.id_number}) | PT: ${g.origin_company}</small><br>
-                    <small>Status: <b>${g.status}</b> | Diproses oleh: <b>${g.approved_by || '-'}</b></small>
+                    <small>Status: <b>${g.status}</b></small>
                 </div>
                 <div class="action-btns">
                     <button onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:4px 8px; font-size:0.8rem;">Approve</button>
@@ -482,45 +497,63 @@ async function loadAdminGuests() {
     });
 }
 
-async function autoClearOldOlderGuestsIfAny() {
-    await autoClearOldGuests();
-}
-
 async function updateGuestStatus(id, status) {
-    const activeAdmin = currentUsername || currentUserRole || 'Admin';
     if (supabaseClient) {
-        await supabaseClient.from('guests').update({ status: status, approved_by: activeAdmin }).eq('guest_id', id);
+        await supabaseClient.from('guests').update({ status: status }).eq('guest_id', id);
     } else {
         let guests = JSON.parse(localStorage.getItem('guests') || '[]');
         let g = guests.find(x => x.guest_id === id); 
-        if (g) {
-            g.status = status;
-            g.approved_by = activeAdmin;
-        }
+        if (g) g.status = status;
         localStorage.setItem('guests', JSON.stringify(guests));
     }
     if (currentUserRole === 'super_admin') loadSuperAdminGuests();
     else loadAdminGuests();
 }
 
+// MENAMPILKAN DATA MANAJEMEN USER APPROVE PADA HAK PENUH / KONTROL SUPER ADMIN
 async function loadSuperAdminGuests() {
-    await autoClearOldGuests();
     let guests = [];
+    let adminUsers = [];
+
     if (supabaseClient) {
-        const { data } = await supabaseClient.from('guests').select('*').order('created_at', { ascending: false });
-        guests = data || [];
+        const { data: gData } = await supabaseClient.from('guests').select('*').order('created_at', { ascending: false });
+        guests = gData || [];
+        const { data: uData } = await supabaseClient.from('users').select('*');
+        adminUsers = uData || [];
     } else {
         guests = JSON.parse(localStorage.getItem('guests') || '[]');
+        adminUsers = JSON.parse(localStorage.getItem('users') || '[]');
     }
 
     const c = document.getElementById('superadmin-guest-container'); 
     c.innerHTML = '';
+
+    // Bagian Informasi Manajemen User Approve yang Aktif
+    let adminListHtml = `<div style="background:#f9f9f9; padding:10px; border-radius:6px; margin-bottom:12px; border:1px solid #ddd;">
+        <strong>👥 Daftar Manajemen Akses User Approve Aktif:</strong><ul style="margin:5px 0 0 15px; padding:0; font-size:0.9rem;">`;
+    
+    if (adminUsers.length === 0) {
+        adminListHtml += `<li>Tidak ada user terdaftar.</li>`;
+    } else {
+        adminUsers.forEach(usr => {
+            adminListHtml += `<li><b>${usr.username}</b> (Role: <i>${usr.role}</i>)</li>`;
+        });
+    }
+    adminListHtml += `</ul></div>`;
+
+    c.innerHTML += adminListHtml;
+
+    if (guests.length === 0) {
+        c.innerHTML += `<p style="color:#666; font-size:0.9rem;">Belum ada data registrasi tamu tersimpan.</p>`;
+        return;
+    }
+
     guests.forEach(g => {
         c.innerHTML += `
-            <div class="item-row">
+            <div class="item-row" style="margin-bottom:8px;">
                 <div>
                     <strong>${g.guest_id}</strong> - ${g.fullname} (${g.origin_company})<br>
-                    <small>ID: ${g.id_type} (${g.id_number}) | Status: <b>${g.status}</b> | Diproses oleh: <b>${g.approved_by || '-'}</b></small>
+                    <small>ID: ${g.id_type} (${g.id_number}) | Status: <b>${g.status}</b></small>
                 </div>
                 <div class="action-btns">
                     <button onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:3px 6px; font-size:0.75rem;">Approve</button>
@@ -596,6 +629,7 @@ async function resetAllConfigurations() {
     }
 }
 
+// Whitelist PT & Jenis ID
 async function addApprovedCompany() {
     const c = document.getElementById('new-approved-company').value.trim(); 
     if (!c) return;
