@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title id="page-title">Sistem Manajemen Tamu</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Supabase SDK Library -->
+    <!-- Supabase SDK Library[cite: 17] -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body id="app-body">
@@ -29,11 +29,15 @@
                 <h2 id="txt-welcome">Selamat Datang di Portal Tamu</h2>
                 <p id="txt-subtitle">Silakan pilih menu di bawah ini untuk melanjutkan.</p>
                 
-                <button class="btn-primary btn-large" onclick="showView('view-register')" id="btn-get-started">Get Started (Registrasi Tamu)</button>
+                <!-- Tombol Get Started yang Dioptimalkan[cite: 17] -->
+                <button type="button" class="btn-primary btn-large" onclick="showView('view-register')" id="btn-get-started">Get Started (Registrasi Tamu)</button>
                 
                 <div class="home-links">
-                    <button class="btn-secondary" onclick="showView('view-status')" id="btn-goto-status">Cek Status Kunjungan</button>
-                    <button class="btn-outline" onclick="showView('view-login')" id="btn-goto-login">Login Admin & Super Admin</button>
+                    <!-- Tombol Cek Status Kunjungan yang Dioptimalkan[cite: 17] -->
+                    <button type="button" class="btn-secondary" onclick="showView('view-status')" id="btn-goto-status">Cek Status Kunjungan</button>
+                    
+                    <!-- Tombol Login Admin & Super Admin yang Dioptimalkan[cite: 17] -->
+                    <button type="button" class="btn-outline" onclick="showView('view-login')" id="btn-goto-login">Login Admin & Super Admin</button>
                 </div>
             </div>
         </section>
@@ -72,7 +76,7 @@
 
                 <button type="submit" class="btn-primary" id="btn-submit-reg">Daftar Sekarang</button>
             </form>
-            <button class="btn-back" onclick="showView('view-home')">Kembali</button>
+            <button type="button" class="btn-back" onclick="showView('view-home')">Kembali</button>
         </section>
 
         <!-- VIEW 3: CEK STATUS KUNJUNGAN -->
@@ -81,18 +85,17 @@
             <p id="txt-status-desc">Masukkan Nomor Registrasi / ID Tamu Anda untuk memeriksa status approve.</p>
             
             <div class="search-box">
-                <!-- Auto-fill input nomor registrasi tamu -->
+                <!-- Kolom Input Status Dilengkapi ID dan Atribut Pendukung Auto-Fill[cite: 17] -->
                 <input type="text" id="check-guest-id" placeholder="Contoh: GST-123456">
-                <button onclick="checkStatus()" class="btn-primary" id="btn-check-status">Cek Status</button>
+                <button type="button" onclick="checkStatus()" class="btn-primary" id="btn-check-status">Cek Status</button>
             </div>
             
-            <!-- Wadah hasil notifikasi & rincian status approve -->
-            <div id="status-result" style="margin-top: 20px; display:none;"></div>
+            <div id="status-result" class="notif" style="display:none;"></div>
 
             <div class="extra-links" style="margin-top: 25px;">
-                <button class="btn-outline" onclick="showView('view-login')">Login Admin / Super Admin</button>
+                <button type="button" class="btn-outline" onclick="showView('view-login')">Login Admin / Super Admin</button>
             </div>
-            <button class="btn-back" onclick="showView('view-home')">Kembali</button>
+            <button type="button" class="btn-back" onclick="showView('view-home')">Kembali</button>
         </section>
 
         <!-- VIEW 4: LOGIN ADMIN & SUPER ADMIN -->
@@ -105,14 +108,15 @@
                 </div>
                 <div class="form-group">
                     <label id="lbl-password">Password</label>
+                    <!-- Input password aman dan diakses normal tanpa batasan ketat[cite: 17] -->
                     <input type="password" id="login-password" required placeholder="Masukkan password">
                 </div>
                 <button type="submit" class="btn-primary" id="btn-login-submit">Login</button>
             </form>
             <div class="extra-links">
-                <a href="#" onclick="showView('view-reset')" id="link-reset-pass">Lupa / Reset Password?</a>
+                <a href="#" onclick="showView('view-reset'); return false;" id="link-reset-pass">Lupa / Reset Password?</a>
             </div>
-            <button class="btn-back" onclick="showView('view-home')">Kembali</button>
+            <button type="button" class="btn-back" onclick="showView('view-home')">Kembali</button>
         </section>
 
         <!-- VIEW 5: RESET PASSWORD -->
@@ -127,8 +131,8 @@
                 <label>Password Baru</label>
                 <input type="password" id="reset-new-password" placeholder="Password baru">
             </div>
-            <button onclick="handleResetPassword()" class="btn-primary" id="btn-reset-submit">Reset Password</button>
-            <button class="btn-back" onclick="showView('view-login')">Kembali</button>
+            <button type="button" onclick="handleResetPassword()" class="btn-primary" id="btn-reset-submit">Reset Password</button>
+            <button type="button" class="btn-back" onclick="showView('view-login')">Kembali</button>
         </section>
 
         <!-- VIEW 6: ADMIN DASHBOARD (APPROVAL) -->
@@ -136,10 +140,10 @@
             <h2>Admin Dashboard (Verifikasi Tamu)</h2>
             <div class="dashboard-card">
                 <h3>Permintaan Kunjungan Masuk</h3>
-                <button onclick="loadAdminGuests()" class="btn-secondary" style="margin-bottom:10px;">Refresh Data</button>
+                <button type="button" onclick="loadAdminGuests()" class="btn-secondary" style="margin-bottom:10px;">Refresh Data</button>
                 <div id="admin-guest-container" class="scroll-list"></div>
             </div>
-            <button class="btn-back" onclick="logout()">Logout</button>
+            <button type="button" class="btn-back" onclick="logout()">Logout</button>
         </section>
 
         <!-- VIEW 7: SUPER ADMIN DASHBOARD (FULL ACCESS) -->
@@ -161,8 +165,8 @@
                     <label>Upload Wallpaper Background (Lokal File)</label>
                     <input type="file" id="config-wallpaper" accept="image/*">
                 </div>
-                <button onclick="saveWebConfiguration()" class="btn-primary">Simpan Konfigurasi</button>
-                <button onclick="resetAllConfigurations()" class="btn-danger" style="margin-top:10px;">Hapus / Reset Semua Konfigurasi Web</button>
+                <button type="button" onclick="saveWebConfiguration()" class="btn-primary">Simpan Konfigurasi</button>
+                <button type="button" onclick="resetAllConfigurations()" class="btn-danger" style="margin-top:10px;">Hapus / Reset Semua Konfigurasi Web</button>
             </div>
 
             <!-- Management User Approve -->
@@ -174,7 +178,7 @@
                         <input type="text" id="new-admin-user" placeholder="Username Admin">
                         <input type="password" id="new-admin-pass" placeholder="Password">
                     </div>
-                    <button onclick="addApproveUser()" class="btn-secondary" style="margin-top:8px;">Tambah Akses Admin</button>
+                    <button type="button" onclick="addApproveUser()" class="btn-secondary" style="margin-top:8px;">Tambah Akses Admin</button>
                 </div>
                 <label>Daftar User Akses Approve Aktif:</label>
                 <div id="approve-users-list" class="scroll-list"></div>
@@ -183,7 +187,7 @@
             <!-- Full Guest Management & Approval Rights -->
             <div class="dashboard-card" style="margin-top:20px;">
                 <h3>3. Hak Penuh Persetujuan & Hapus Data Tamu</h3>
-                <button onclick="loadSuperAdminGuests()" class="btn-secondary" style="margin-bottom:10px;">Muat Semua Data Tamu</button>
+                <button type="button" onclick="loadSuperAdminGuests()" class="btn-secondary" style="margin-bottom:10px;">Muat Semua Data Tamu</button>
                 <div id="superadmin-guest-container" class="scroll-list"></div>
             </div>
 
@@ -194,7 +198,7 @@
                     <label>Tambah Whitelist Nama PT Disetujui</label>
                     <div style="display:flex; gap:10px;">
                         <input type="text" id="new-approved-company" placeholder="Nama PT Baru">
-                        <button onclick="addApprovedCompany()" class="btn-secondary" style="width:auto;">Tambah PT</button>
+                        <button type="button" onclick="addApprovedCompany()" class="btn-secondary" style="width:auto;">Tambah PT</button>
                     </div>
                 </div>
                 <div id="approved-companies-manage-list" class="scroll-list" style="margin-bottom:15px;"></div>
@@ -203,31 +207,16 @@
                     <label>Tambah Jenis ID</label>
                     <div style="display:flex; gap:10px;">
                         <input type="text" id="new-id-type" placeholder="Jenis ID (contoh: KIMS, KTA)">
-                        <button onclick="addIdType()" class="btn-secondary" style="width:auto;">Tambah ID</button>
+                        <button type="button" onclick="addIdType()" class="btn-secondary" style="width:auto;">Tambah ID</button>
                     </div>
                 </div>
                 <div id="id-types-manage-list" class="scroll-list"></div>
             </div>
 
-            <button class="btn-back" onclick="logout()" style="margin-top:20px;">Logout</button>
+            <button type="button" class="btn-back" onclick="logout()" style="margin-top:20px;">Logout</button>
         </section>
     </main>
 
     <script src="script.js"></script>
-    <script>
-        // Fitur Tambahan: Auto-masukan Nomor Registrasi dari URL Parameter (contoh: ?guest=GST-123456) atau memori lokal
-        window.addEventListener('DOMContentLoaded', () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const guestParam = urlParams.get('guest');
-            const lastGuest = guestParam || localStorage.getItem('last_registered_guest');
-            
-            if (lastGuest) {
-                const inputField = document.getElementById('check-guest-id');
-                if (inputField) {
-                    inputField.value = lastGuest;
-                }
-            }
-        });
-    </script>
 </body>
 </html>
