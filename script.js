@@ -1,4 +1,4 @@
-// Konfigurasi Supabase (Ganti dengan kredo Supabase Anda)
+// Konfigurasi Supabase (Ganti dengan kredensial Supabase Anda)
 const SUPABASE_URL = 'https://tgqadtkvarirvppbgyzu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRncWFkdGt2YXJpcnZwcGJneXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzE4NzcsImV4cCI6MjEwNjAwNzg3N30.DGQAgf0qQ_scIn2XHpWSdTDxmnqr-SLyW-HiQ8WqOG0';
 
@@ -133,7 +133,7 @@ async function loadDropdownData() {
     });
 }
 
-// Registrasi Tamu Baru
+// Registrasi Tamu Baru dengan Fitur Auto-Fill ke Cek Status
 async function handleRegister(e) {
     e.preventDefault();
     const guestId = 'GST-' + Math.floor(100000 + Math.random() * 900000);
@@ -163,9 +163,18 @@ async function handleRegister(e) {
         if (!comps.includes(compInput)) { comps.push(compInput); localStorage.setItem('approved_companies', JSON.stringify(comps)); }
     }
 
-    alert(`Registrasi Berhasil!\n\nNomor Registrasi Tamu Anda: ${guestId}\nSimpan kode ini untuk memeriksa status persetujuan.`);
+    // FITUR AUTO-FILL: Masukkan nomor registrasi otomatis ke kolom cek status
+    const statusInput = document.getElementById('check-guest-id');
+    if (statusInput) {
+        statusInput.value = guestId;
+    }
+
+    alert(`Registrasi Berhasil!\n\nNomor Registrasi Tamu Anda: ${guestId}\nKode telah otomatis dimasukkan ke menu Cek Status.`);
     document.getElementById('form-register').reset();
-    showView('view-home');
+    
+    // Langsung arahkan ke view cek status agar tamu bisa langsung melihat statusnya
+    showView('view-status');
+    checkStatus(); // Panggil otomatis pengecekan status
 }
 
 // FITUR: MENAMPILKAN NOMOR REGISTRASI DAN ID TAMU PADA CEK STATUS KUNJUNGAN
@@ -598,6 +607,7 @@ async function loadManageIdTypes() {
     }
     const container = document.getElementById('id-types-manage-list');
     container.innerHTML = '';
+    types.getTokenList = []; // Clean render helper
     types.forEach(t => {
         container.innerHTML += `
             <div class="item-row">
