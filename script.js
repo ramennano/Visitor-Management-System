@@ -1,6 +1,6 @@
-// Konfigurasi Supabase (Ganti dengan kredensial Supabase Anda)
+// Konfigurasi Supabase
 const SUPABASE_URL = 'https://tgqadtkvarirvppbgyzu.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRncWFkdGt2YXJpcnZwcGJneXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzE4NzcsImV4cCI6MjEwNjAwNzg3N30.DGQAgf0qQ_scIn2XHpWSdTDxmnqr-SLyW-HiQ8WqOG0';[cite: 19]
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRncWFkdGt2YXJpcnZwcGJneXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzE4NzcsImV4cCI6MjEwNjAwNzg3N30.DGQAgf0qQ_scIn2XHpWSdTDxmnqr-SLyW-HiQ8WqOG0';
 
 let supabaseClient = null;
 try {
@@ -13,7 +13,6 @@ try {
 
 const DEFAULT_ID_TYPES = ["KTP", "SIM", "Paspor", "ID Pegawai", "Lainnya"];
 
-// Kamus Bahasa
 const dictionary = {
     id: {
         welcome: "Selamat Datang di Portal Tamu",
@@ -42,46 +41,60 @@ const dictionary = {
 };
 
 let currentLang = 'id';
+let currentUserRole = null;
 
 function changeLanguage() {
     currentLang = document.getElementById('lang-select').value;
     const t = dictionary[currentLang];
-    document.getElementById('txt-welcome').innerText = t.welcome;
-    document.getElementById('txt-subtitle').innerText = t.subtitle;
-    document.getElementById('btn-get-started').innerText = t.getStarted;
-    document.getElementById('btn-goto-status').innerText = t.gotoStatus;
-    document.getElementById('btn-goto-login').innerText = t.gotoLogin;
-    document.getElementById('txt-reg-title').innerText = t.regTitle;
-    document.getElementById('lbl-fullname').innerText = t.fullname;
-    document.getElementById('lbl-id-type').innerText = t.idType;
-    document.getElementById('lbl-id-number').innerText = t.idNumber;
-    document.getElementById('lbl-company').innerText = t.company;
-    document.getElementById('lbl-purpose').innerText = t.purpose;
-    document.getElementById('btn-submit-reg').innerText = t.submitReg;
-    document.getElementById('txt-status-title').innerText = t.statusTitle;
-    document.getElementById('txt-status-desc').innerText = t.statusDesc;
-    document.getElementById('btn-check-status').innerText = t.checkStatusBtn;
-    document.getElementById('txt-login-title').innerText = t.loginTitle;
+    if (document.getElementById('txt-welcome')) document.getElementById('txt-welcome').innerText = t.welcome;
+    if (document.getElementById('txt-subtitle')) document.getElementById('txt-subtitle').innerText = t.subtitle;
+    if (document.getElementById('btn-get-started')) document.getElementById('btn-get-started').innerText = t.getStarted;
+    if (document.getElementById('btn-goto-status')) document.getElementById('btn-goto-status').innerText = t.gotoStatus;
+    if (document.getElementById('btn-goto-login')) document.getElementById('btn-goto-login').innerText = t.gotoLogin;
+    if (document.getElementById('txt-reg-title')) document.getElementById('txt-reg-title').innerText = t.regTitle;
+    if (document.getElementById('btn-submit-reg')) document.getElementById('btn-submit-reg').innerText = t.submitReg;
+    if (document.getElementById('txt-status-title')) document.getElementById('txt-status-title').innerText = t.statusTitle;
+    if (document.getElementById('txt-status-desc')) document.getElementById('txt-status-desc').innerText = t.statusDesc;
+    if (document.getElementById('btn-check-status')) document.getElementById('btn-check-status').innerText = t.checkStatusBtn;
+    if (document.getElementById('txt-login-title')) document.getElementById('txt-login-title').innerText = t.loginTitle;
 
     loadDropdownData();
 }
 
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-    document.getElementById(viewId).classList.add('active');
-    
-    // SIMPAN VIEW AKTIF KE SESSION STORAGE AGAR TIDAK HILANG SAAT REFRESH
-    sessionStorage.setItem('activeView', viewId);
+    const target = document.getElementById(viewId);
+    if (target) {
+        target.classList.add('active');
+        sessionStorage.setItem('currentView', viewId);
+    }
 }
 
-// RESTORASI SESI DAN VIEW SAAT HALAMAN DIREFRESH
+// AUTO CLEAR DATA TAMU LEBIH DARI 1 HARI (24 JAM)
+async function cleanOldGuests() {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    if (supabaseClient) {
+        try {
+            await supabaseClient.from('guests').delete().lt('created_at', oneDayAgo.toISOString());
+        } catch (e) {
+            console.error(e);
+        }
+    } else {
+        let guests = JSON.parse(localStorage.getItem('guests') || '[]');
+        guests = guests.filter(g => new Date(g.created_at || Date.now()) > oneDayAgo);
+        localStorage.setItem('guests', JSON.stringify(guests));
+    }
+}
+
 window.onload = async () => {
+    await cleanOldGuests();
     await loadWebSettings();
     await loadDropdownData();
 
+    // Pulihkan Session & View Terakhir Saat Refresh
     const savedRole = sessionStorage.getItem('currentUserRole');
-    const savedView = sessionStorage.getItem('activeView');
-    const savedGuestId = sessionStorage.getItem('lastCheckedGuestId');
+    const savedView = sessionStorage.getItem('currentView');
+    const savedGuestId = sessionStorage.getItem('lastGuestId');
 
     if (savedGuestId && document.getElementById('check-guest-id')) {
         document.getElementById('check-guest-id').value = savedGuestId;
@@ -89,18 +102,19 @@ window.onload = async () => {
 
     if (savedRole) {
         currentUserRole = savedRole;
-    }
-
-    if (savedView) {
-        showView(savedView);
-        if (savedView === 'view-superadmin') {
+        if (currentUserRole === 'super_admin') {
+            showView('view-superadmin');
             loadApproveUsers();
             loadSuperAdminGuests();
             loadManageApprovedCompanies();
             loadManageIdTypes();
-        } else if (savedView === 'view-admin') {
+        } else if (currentUserRole === 'admin') {
+            showView('view-admin');
             loadAdminGuests();
-        } else if (savedView === 'view-status' && savedGuestId) {
+        }
+    } else if (savedView) {
+        showView(savedView);
+        if (savedView === 'view-status' && savedGuestId) {
             checkStatus();
         }
     }
@@ -115,20 +129,16 @@ async function loadWebSettings() {
         settings = JSON.parse(localStorage.getItem('web_settings') || '{}');
     }
 
-    if (settings.company_name) {
+    if (settings.company_name && document.getElementById('app-company-name')) {
         document.getElementById('app-company-name').innerText = settings.company_name;
         document.title = settings.company_name;
     }
     if (settings.logo_url) {
         const logo = document.getElementById('app-logo');
-        logo.src = settings.logo_url; logo.style.display = 'inline-block';
-    } else {
-        document.getElementById('app-logo').style.display = 'none';
+        if (logo) { logo.src = settings.logo_url; logo.style.display = 'inline-block'; }
     }
-    if (settings.wallpaper_url) {
+    if (settings.wallpaper_url && document.body) {
         document.body.style.backgroundImage = `url('${settings.wallpaper_url}')`;
-    } else {
-        document.body.style.backgroundImage = 'none';
     }
 }
 
@@ -148,22 +158,25 @@ async function loadDropdownData() {
     }
 
     const datalist = document.getElementById('approved-companies-list');
-    datalist.innerHTML = '';
-    companies.forEach(c => datalist.innerHTML += `<option value="${c}">`);
+    if (datalist) {
+        datalist.innerHTML = '';
+        companies.forEach(c => datalist.innerHTML += `<option value="${c}">`);
+    }
 
     const idSelect = document.getElementById('reg-id-type');
-    const placeholderText = dictionary[currentLang].idTypePlaceholder;
-    
-    idSelect.innerHTML = `<option value="" disabled selected>${placeholderText}</option>`;
-    idTypes.forEach(id => {
-        let opt = document.createElement('option');
-        opt.value = id;
-        opt.innerText = id;
-        idSelect.appendChild(opt);
-    });
+    if (idSelect) {
+        const placeholderText = dictionary[currentLang].idTypePlaceholder;
+        idSelect.innerHTML = `<option value="" disabled selected>${placeholderText}</option>`;
+        idTypes.forEach(id => {
+            let opt = document.createElement('option');
+            opt.value = id;
+            opt.innerText = id;
+            idSelect.appendChild(opt);
+        });
+    }
 }
 
-// Registrasi Tamu Baru dengan Fitur Auto-Fill ke Cek Status
+// Registrasi Tamu Baru
 async function handleRegister(e) {
     e.preventDefault();
     const guestId = 'GST-' + Math.floor(100000 + Math.random() * 900000);
@@ -189,16 +202,15 @@ async function handleRegister(e) {
         await supabaseClient.from('guests').insert([newGuest]);
     } else {
         let guests = JSON.parse(localStorage.getItem('guests') || '[]');
-        guests.push(newGuest); localStorage.setItem('guests', JSON.stringify(guests));
+        guests.push(newGuest); 
+        localStorage.setItem('guests', JSON.stringify(guests));
         let comps = JSON.parse(localStorage.getItem('approved_companies') || '[]');
         if (!comps.includes(compInput)) { comps.push(compInput); localStorage.setItem('approved_companies', JSON.stringify(comps)); }
     }
 
+    sessionStorage.setItem('lastGuestId', guestId);
     const statusInput = document.getElementById('check-guest-id');
-    if (statusInput) {
-        statusInput.value = guestId;
-    }
-    sessionStorage.setItem('lastCheckedGuestId', guestId);
+    if (statusInput) statusInput.value = guestId;
 
     alert(`Registrasi Berhasil!\n\nNomor Registrasi Tamu Anda: ${guestId}\nKode telah otomatis dimasukkan ke menu Cek Status.`);
     document.getElementById('form-register').reset();
@@ -208,7 +220,9 @@ async function handleRegister(e) {
 }
 
 async function checkStatus() {
-    const id = document.getElementById('check-guest-id').value.trim();
+    const inputEl = document.getElementById('check-guest-id');
+    if (!inputEl) return;
+    const id = inputEl.value.trim();
     const resDiv = document.getElementById('status-result');
     resDiv.style.display = 'block';
 
@@ -218,7 +232,7 @@ async function checkStatus() {
         return;
     }
 
-    sessionStorage.setItem('lastCheckedGuestId', id);
+    sessionStorage.setItem('lastGuestId', id);
 
     let guest = null;
     if (supabaseClient) {
@@ -245,7 +259,7 @@ async function checkStatus() {
             statusText = '<span style="color:#856404; font-weight:bold;">MENUNGGU VERIFIKASI (PENDING)</span>';
         }
 
-        let content = `
+        resDiv.innerHTML = `
             <div style="text-align: left; padding: 10px; line-height: 1.7; background:#ffffff; border-radius:6px; margin-bottom:8px; border:1px solid #ddd;">
                 📌 <strong>Nomor Registrasi Tamu:</strong> <span style="color:#0066cc; font-size:1.1rem; font-weight:bold;">${guest.guest_id}</span><br>
                 👤 <strong>Nama Lengkap:</strong> ${guest.fullname}<br>
@@ -255,14 +269,8 @@ async function checkStatus() {
                 📊 <strong>Status Akses:</strong> ${statusText}
             </div>
         `;
-
-        resDiv.innerHTML = content;
     }
 }
-
-// LOGIN ADMIN & SUPER ADMIN DENGAN PENYIMPANAN SESI
-let currentUserRole = null;
-let currentUsername = null;
 
 async function handleLogin(e) {
     e.preventDefault();
@@ -284,13 +292,12 @@ async function handleLogin(e) {
 
             if (!error && data) loggedIn = data;
         } catch (err) {
-            console.warn('Gagal autentikasi Supabase, beralih ke penyimpanan lokal.');
+            console.warn('Gagal autentikasi Supabase.');
         }
     }
 
     if (!loggedIn) {
         let users = JSON.parse(localStorage.getItem('users') || '[]');
-        
         const defaultUsers = [
             { username: "superadmin", password: "super123", role: "super_admin" },
             { username: "admin", password: "admin123", role: "admin" }
@@ -306,11 +313,7 @@ async function handleLogin(e) {
 
     if (loggedIn) {
         currentUserRole = loggedIn.role;
-        currentUsername = loggedIn.username;
-
         sessionStorage.setItem('currentUserRole', currentUserRole);
-        sessionStorage.setItem('currentUsername', currentUsername);
-
         document.getElementById('form-login').reset();
         
         if (currentUserRole === 'super_admin') {
@@ -330,8 +333,8 @@ async function handleLogin(e) {
 
 function logout() { 
     currentUserRole = null; 
-    currentUsername = null;
-    sessionStorage.clear();
+    sessionStorage.removeItem('currentUserRole');
+    sessionStorage.removeItem('currentView');
     showView('view-home'); 
 }
 
@@ -346,10 +349,7 @@ async function handleResetPassword() {
     } else {
         let users = JSON.parse(localStorage.getItem('users') || '[]');
         let f = users.find(u => u.username === user);
-        if (f) { 
-            f.password = newPass; 
-            localStorage.setItem('users', JSON.stringify(users)); 
-        }
+        if (f) { f.password = newPass; localStorage.setItem('users', JSON.stringify(users)); }
     }
     alert('Password berhasil direset! Silakan login kembali.');
     showView('view-login');
@@ -361,7 +361,6 @@ async function addApproveUser() {
     if (!u || !p) return alert('Isi username dan password admin baru.');
 
     let isSaved = false;
-
     if (supabaseClient) {
         try {
             const { error } = await supabaseClient.from('users').insert([{ username: u, password: p, role: 'admin' }]);
@@ -399,6 +398,7 @@ async function loadApproveUsers() {
     }
 
     const c = document.getElementById('approve-users-list'); 
+    if (!c) return;
     c.innerHTML = '';
     
     if (users.length === 0) {
@@ -423,29 +423,8 @@ async function deleteApproveUser(username) {
         let users = JSON.parse(localStorage.getItem('users') || '[]');
         users = users.filter(x => x.username !== username);
         localStorage.setItem('users', JSON.stringify(users));
-
         loadApproveUsers();
     }
-}
-
-// FILTER & HAPUS OTOMATIS DATA TAMU LEBIH DARI 1 HARI (24 JAM)
-async function filterAndCleanExpiredGuests(guestsArray) {
-    const now = new Date().getTime();
-    const oneDayMs = 24 * 60 * 60 * 1000;
-    let validGuests = [];
-
-    for (let g of guestsArray) {
-        const guestTime = new Date(g.created_at || now).getTime();
-        if (now - guestTime > oneDayMs) {
-            // Hapus otomatis jika lebih dari 1 hari
-            if (supabaseClient && g.guest_id) {
-                await supabaseClient.from('guests').delete().eq('guest_id', g.guest_id);
-            }
-        } else {
-            validGuests.push(g);
-        }
-    }
-    return validGuests;
 }
 
 async function loadAdminGuests() {
@@ -457,10 +436,8 @@ async function loadAdminGuests() {
         guests = JSON.parse(localStorage.getItem('guests') || '[]');
     }
 
-    guests = await filterAndCleanExpiredGuests(guests);
-    if (!supabaseClient) localStorage.setItem('guests', JSON.stringify(guests));
-
     const c = document.getElementById('admin-guest-container'); 
+    if (!c) return;
     c.innerHTML = '';
     guests.forEach(g => {
         c.innerHTML += `
@@ -491,30 +468,39 @@ async function updateGuestStatus(id, status) {
     else loadAdminGuests();
 }
 
-// LOAD SUPER ADMIN GUESTS DENGAN KETERANGAN MANAJEMEN AKSES (ADMIN APPROVE)
+// Menampilkan Hak Penuh Tamu Beserta Informasi Manajemen User Approve
 async function loadSuperAdminGuests() {
     let guests = [];
+    let adminUsers = [];
+
     if (supabaseClient) {
-        const { data } = await supabaseClient.from('guests').select('*').order('created_at', { ascending: false });
-        guests = data || [];
+        const gRes = await supabaseClient.from('guests').select('*').order('created_at', { ascending: false });
+        guests = gRes.data || [];
+        const uRes = await supabaseClient.from('users').select('username, role');
+        adminUsers = uRes.data || [];
     } else {
         guests = JSON.parse(localStorage.getItem('guests') || '[]');
+        adminUsers = JSON.parse(localStorage.getItem('users') || '[]');
     }
 
-    guests = await filterAndCleanExpiredGuests(guests);
-    if (!supabaseClient) localStorage.setItem('guests', JSON.stringify(guests));
-
-    const activeAdminName = sessionStorage.getItem('currentUsername') || currentUsername || 'Super Admin';
-
     const c = document.getElementById('superadmin-guest-container'); 
+    if (!c) return;
     c.innerHTML = '';
+
+    // Tampilkan informasi ringkas daftar manajemen user approve di bagian atas container tamu
+    let adminNames = adminUsers.map(u => `${u.username} (${u.role})`).join(', ') || 'Belum ada data admin';
+    let headerInfo = `<div style="background:#f8f9fa; padding:8px; border-radius:4px; margin-bottom:10px; font-size:0.85rem; color:#444;">
+        👥 <strong>Manajemen Akses User Approve Aktif:</strong> ${adminNames}
+    </div>`;
+    
+    let itemsHtml = headerInfo;
     guests.forEach(g => {
-        c.innerHTML += `
+        itemsHtml += `
             <div class="item-row">
                 <div>
                     <strong>${g.guest_id}</strong> - ${g.fullname} (${g.origin_company})<br>
                     <small>ID: ${g.id_type} (${g.id_number}) | Status: <b>${g.status}</b></small><br>
-                    <small style="color: #0066cc;">👤 Dikelola oleh Admin / User: <b>${activeAdminName}</b></small>
+                    <small style="color:#666;">🕒 Dibuat: ${new Date(g.created_at || Date.now()).toLocaleString()}</small>
                 </div>
                 <div class="action-btns">
                     <button onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:3px 6px; font-size:0.75rem;">Approve</button>
@@ -523,6 +509,7 @@ async function loadSuperAdminGuests() {
                 </div>
             </div>`;
     });
+    c.innerHTML = itemsHtml;
 }
 
 async function deleteGuestRecord(id) {
@@ -614,6 +601,7 @@ async function loadManageApprovedCompanies() {
         comps = arr.map(c => ({ company_name: c })); 
     }
     const container = document.getElementById('approved-companies-manage-list'); 
+    if (!container) return;
     container.innerHTML = '';
     comps.forEach(c => container.innerHTML += `<div class="item-row"><span>${c.company_name}</span><button onclick="deleteComp('${c.company_name}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button></div>`);
 }
@@ -656,6 +644,7 @@ async function loadManageIdTypes() {
         types = arr.map(t => ({ name: t }));
     }
     const container = document.getElementById('id-types-manage-list');
+    if (!container) return;
     container.innerHTML = '';
     types.forEach(t => {
         container.innerHTML += `
