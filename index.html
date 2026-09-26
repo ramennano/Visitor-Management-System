@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">Sistem Manajemen Tamu</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase SDK Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body id="app-body">
+    <div class="overlay"></div>
+    
+    <header class="main-header">
+        <img id="app-logo" src="" alt="Logo" style="display:none; max-height: 60px;">
+        <h1 id="app-company-name">PT Solusi Teknologi Indonesia</h1>
+    </header>
+
+    <main class="container">
+        <!-- VIEW 1: HOME / LANDING PAGE -->
+        <section id="view-home" class="view active">
+            <div class="lang-selector">
+                <select id="lang-select" onchange="changeLanguage()">
+                    <option value="id">Indonesia</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+            <div class="welcome-box">
+                <h2 id="txt-welcome">Selamat Datang di Portal Tamu</h2>
+                <p id="txt-subtitle">Silakan pilih menu di bawah ini untuk melanjutkan.</p>
+                
+                <button class="btn-primary btn-large" onclick="showView('view-register')" id="btn-get-started">Get Started (Registrasi Tamu)</button>
+                
+                <div class="home-links">
+                    <button class="btn-secondary" onclick="showView('view-status')" id="btn-goto-status">Cek Status Kunjungan</button>
+                    <button class="btn-outline" onclick="showView('view-login')" id="btn-goto-login">Login Admin & Super Admin</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- VIEW 2: REGISTRASI TAMU -->
+        <section id="view-register" class="view">
+            <h2 id="txt-reg-title">Registrasi Tamu</h2>
+            <form id="form-register" onsubmit="handleRegister(event)">
+                <div class="form-group">
+                    <label id="lbl-fullname">Nama Lengkap</label>
+                    <input type="text" id="reg-name" required placeholder="Masukkan nama lengkap">
+                </div>
+                
+                <div class="form-group">
+                    <label id="lbl-id-type">Jenis ID</label>
+                    <select id="reg-id-type" required>
+                        <option value="" disabled selected>Pilih Jenis ID</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label id="lbl-id-number">Nomor ID</label>
+                    <input type="text" id="reg-id-number" required placeholder="Nomor KTP/SIM/Paspor">
+                </div>
+
+                <div class="form-group">
+                    <label id="lbl-company">Asal Instansi / Perusahaan</label>
+                    <input type="text" id="reg-company" list="approved-companies-list" required placeholder="Pilih atau ketik manual asal PT (Autosave jika baru)">
+                    <datalist id="approved-companies-list"></datalist>
+                </div>
+
+                <div class="form-group">
+                    <label id="lbl-purpose">Tujuan Kunjungan</label>
+                    <textarea id="reg-purpose" required placeholder="Keperluan kunjungan..."></textarea>
+                </div>
+
+                <button type="submit" class="btn-primary" id="btn-submit-reg">Daftar Sekarang</button>
+            </form>
+            <button class="btn-back" onclick="showView('view-home')">Kembali</button>
+        </section>
+
+        <!-- VIEW 3: CEK STATUS KUNJUNGAN -->
+        <section id="view-status" class="view">
+            <h2 id="txt-status-title">Cek Status Kunjungan</h2>
+            <p id="txt-status-desc">Masukkan Nomor Registrasi / ID Tamu Anda untuk memeriksa status approve.</p>
+            
+            <div class="search-box">
+                <input type="text" id="check-guest-id" placeholder="Contoh: GST-123456">
+                <button onclick="checkStatus()" class="btn-primary" id="btn-check-status">Cek Status</button>
+            </div>
+            
+            <div id="status-result" class="notif" style="display:none;"></div>
+
+            <div class="extra-links" style="margin-top: 25px;">
+                <button class="btn-outline" onclick="showView('view-login')">Login Admin / Super Admin</button>
+            </div>
+            <button class="btn-back" onclick="showView('view-home')">Kembali</button>
+        </section>
+
+        <!-- VIEW 4: LOGIN ADMIN & SUPER ADMIN -->
+        <section id="view-login" class="view">
+            <h2 id="txt-login-title">Login Admin & Super Admin</h2>
+            <form id="form-login" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label id="lbl-username">Username</label>
+                    <input type="text" id="login-username" required placeholder="Masukkan username">
+                </div>
+                <div class="form-group">
+                    <label id="lbl-password">Password</label>
+                    <input type="password" id="login-password" required placeholder="Masukkan password">
+                </div>
+                <button type="submit" class="btn-primary" id="btn-login-submit">Login</button>
+            </form>
+            <div class="extra-links">
+                <a href="#" onclick="showView('view-reset')" id="link-reset-pass">Lupa / Reset Password?</a>
+            </div>
+            <button class="btn-back" onclick="showView('view-home')">Kembali</button>
+        </section>
+
+        <!-- VIEW 5: RESET PASSWORD -->
+        <section id="view-reset" class="view">
+            <h2 id="txt-reset-title">Reset Password</h2>
+            <p id="txt-reset-desc">Masukkan username dan password baru Anda (Tanpa Email).</p>
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="reset-username" placeholder="Username admin/superadmin">
+            </div>
+            <div class="form-group">
+                <label>Password Baru</label>
+                <input type="password" id="reset-new-password" placeholder="Password baru">
+            </div>
+            <button onclick="handleResetPassword()" class="btn-primary" id="btn-reset-submit">Reset Password</button>
+            <button class="btn-back" onclick="showView('view-login')">Kembali</button>
+        </section>
+
+        <!-- VIEW 6: ADMIN DASHBOARD (APPROVAL) -->
+        <section id="view-admin" class="view">
+            <h2>Admin Dashboard (Verifikasi Tamu)</h2>
+            <div class="dashboard-card">
+                <h3>Permintaan Kunjungan Masuk</h3>
+                <button onclick="loadAdminGuests()" class="btn-secondary" style="margin-bottom:10px;">Refresh Data</button>
+                <div id="admin-guest-container" class="scroll-list"></div>
+            </div>
+            <button class="btn-back" onclick="logout()">Logout</button>
+        </section>
+
+        <!-- VIEW 7: SUPER ADMIN DASHBOARD (FULL ACCESS) -->
+        <section id="view-superadmin" class="view">
+            <h2>Super Admin Dashboard (Kontrol Penuh)</h2>
+            
+            <!-- Branding & Web Config -->
+            <div class="dashboard-card">
+                <h3>1. Konfigurasi Website & Branding</h3>
+                <div class="form-group">
+                    <label>Nama Perusahaan / PT</label>
+                    <input type="text" id="config-pt-name" placeholder="Nama PT Baru">
+                </div>
+                <div class="form-group">
+                    <label>Upload Logo Perusahaan (Lokal File)</label>
+                    <input type="file" id="config-logo" accept="image/*">
+                </div>
+                <div class="form-group">
+                    <label>Upload Wallpaper Background (Lokal File)</label>
+                    <input type="file" id="config-wallpaper" accept="image/*">
+                </div>
+                <button onclick="saveWebConfiguration()" class="btn-primary">Simpan Konfigurasi</button>
+                <button onclick="resetAllConfigurations()" class="btn-danger" style="margin-top:10px;">Hapus / Reset Semua Konfigurasi Web</button>
+            </div>
+
+            <!-- Management User Approve -->
+            <div class="dashboard-card" style="margin-top:20px;">
+                <h3>2. Manajemen Akses User Approve Data Tamu</h3>
+                <div class="form-group">
+                    <label>Tambah Akun Admin Approve Baru</label>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="new-admin-user" placeholder="Username Admin">
+                        <input type="password" id="new-admin-pass" placeholder="Password">
+                    </div>
+                    <button onclick="addApproveUser()" class="btn-secondary" style="margin-top:8px;">Tambah Akses Admin</button>
+                </div>
+                <label>Daftar User Akses Approve Aktif:</label>
+                <div id="approve-users-list" class="scroll-list"></div>
+            </div>
+
+            <!-- Full Guest Management & Approval Rights -->
+            <div class="dashboard-card" style="margin-top:20px;">
+                <h3>3. Hak Penuh Persetujuan & Hapus Data Tamu</h3>
+                <button onclick="loadSuperAdminGuests()" class="btn-secondary" style="margin-bottom:10px;">Muat Semua Data Tamu</button>
+                <div id="superadmin-guest-container" class="scroll-list"></div>
+            </div>
+
+            <!-- Whitelist PT & Jenis ID -->
+            <div class="dashboard-card" style="margin-top:20px;">
+                <h3>4. Manajemen Whitelist PT & Jenis ID</h3>
+                <div class="form-group">
+                    <label>Tambah Whitelist Nama PT Disetujui</label>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="new-approved-company" placeholder="Nama PT Baru">
+                        <button onclick="addApprovedCompany()" class="btn-secondary" style="width:auto;">Tambah PT</button>
+                    </div>
+                </div>
+                <div id="approved-companies-manage-list" class="scroll-list" style="margin-bottom:15px;"></div>
+
+                <div class="form-group">
+                    <label>Tambah Jenis ID</label>
+                    <div style="display:flex; gap:10px;">
+                        <input type="text" id="new-id-type" placeholder="Jenis ID (contoh: KIMS, KTA)">
+                        <button onclick="addIdType()" class="btn-secondary" style="width:auto;">Tambah ID</button>
+                    </div>
+                </div>
+                <div id="id-types-manage-list" class="scroll-list"></div>
+            </div>
+
+            <button class="btn-back" onclick="logout()" style="margin-top:20px;">Logout</button>
+        </section>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
