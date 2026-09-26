@@ -66,47 +66,44 @@ function changeLanguage() {
     loadDropdownData();
 }
 
-// Fungsi Pindah View yang Diperbarui dengan Menyimpan Riwayat View ke SessionStorage
+// FITUR: SIMPAN POSISI HALAMAN & ROLE SAAT REFRESH
 function showView(viewId) {
     document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
-    document.getElementById(viewId).classList.add('active');
-    
-    // Simpan view aktif ke sessionStorage agar saat direfresh tidak kembali ke home
-    // (Kecuali view login/reset yang diabaikan agar user kembali bersih jika refresh di halaman form login)
-    if (viewId === 'view-status' || viewId === 'view-admin' || viewId === 'view-superadmin') {
-        sessionStorage.setItem('activeView', viewId);
-    } else if (viewId === 'view-home' || viewId === 'view-login') {
-        sessionStorage.removeItem('activeView');
+    const targetView = document.getElementById(viewId);
+    if (targetView) {
+        targetView.classList.add('active');
+        sessionStorage.setItem('currentView', viewId); // Simpan view aktif
     }
 }
 
 window.onload = async () => {
     await loadWebSettings();
     await loadDropdownData();
+    await autoClearOldGuests(); // Jalankan pembersihan data tamu > 1 hari
 
-    // 1. Cek Sesi Halaman Aktif (Cek Status atau Dashboard Admin/Superadmin)
-    const savedView = sessionStorage.getItem('activeView');
+    // PEMULIHAN SESI & HALAMAN SAAT REFRESH
     const savedRole = sessionStorage.getItem('currentUserRole');
+    const savedView = sessionStorage.getItem('currentView');
 
-    if (savedView === 'view-status') {
-        showView('view-status');
-        // Jika sebelumnya ada nomor registrasi yang dicari, muat kembali jika tersimpan
-        const lastCheckedId = sessionStorage.getItem('lastCheckedGuestId');
-        if (lastCheckedId) {
-            document.getElementById('check-guest-id').value = lastCheckedId;
-            checkStatus();
-        }
-    } else if (savedRole && (savedView === 'view-admin' || savedView === 'view-superadmin')) {
+    if (savedRole) {
         currentUserRole = savedRole;
-        if (currentUserRole === 'super_admin') {
-            showView('view-superadmin');
+    }
+
+    if (savedView && savedView !== 'view-home') {
+        showView(savedView);
+        if (savedView === 'view-superadmin') {
             loadApproveUsers();
             loadSuperAdminGuests();
             loadManageApprovedCompanies();
             loadManageIdTypes();
-        } else if (currentUserRole === 'admin') {
-            showView('view-admin');
+        } else if (savedView === 'view-admin') {
             loadAdminGuests();
+        } else if (savedView === 'view-status') {
+            // Jika ada nomor registrasi sebelumnya di input, muat ulang statusnya
+            const checkInput = document.getElementById('check-guest-id');
+            if (checkInput && checkInput.value.trim() !== '') {
+                checkStatus();
+            }
         }
     }
 };
@@ -168,6 +165,33 @@ async function loadDropdownData() {
     });
 }
 
+// FITUR AUTO-CLEAR DATA TAMU > 1 HARI (24 JAM)
+async function autoClearOldGuests() {
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    const now = new Date().getTime();
+
+    if (supabaseClient) {
+        // Ambil data tamu dari Supabase untuk dicek waktunya
+        const { data: guests, error } = await supabaseClient.from('guests').select('*');
+        if (!error && guests) {
+            for (let g of guests) {
+                const createdTime = new Date(g.created_at || now).getTime();
+                if (now - createdTime > ONE_DAY_MS) {
+                    await supabaseClient.from('guests').delete().eq('guest_id', g.guest_id);
+                }
+            }
+        }
+    } else {
+        // Fallback LocalStorage
+        let guests = JSON.parse(localStorage.getItem('guests') || '[]');
+        let filteredGuests = guests.filter(g => {
+            const createdTime = new Date(g.created_at || now).getTime();
+            return (now - createdTime) <= ONE_DAY_MS;
+        });
+        localStorage.setItem('guests', JSON.stringify(filteredGuests));
+    }
+}
+
 // Registrasi Tamu Baru dengan Fitur Auto-Fill ke Cek Status
 async function handleRegister(e) {
     e.preventDefault();
@@ -184,7 +208,8 @@ async function handleRegister(e) {
         id_number: document.getElementById('reg-id-number').value.trim(),
         origin_company: compInput,
         purpose: document.getElementById('reg-purpose').value.trim(),
-        status: 'Pending'
+        status: 'Pending',
+        created_at: new Date().toISOString() // Simpan timestamp waktu pendaftaran
     };
 
     if (supabaseClient) {
@@ -198,19 +223,16 @@ async function handleRegister(e) {
         if (!comps.includes(compInput)) { comps.push(compInput); localStorage.setItem('approved_companies', JSON.stringify(comps)); }
     }
 
-    // FITUR AUTO-FILL: Masukkan nomor registrasi otomatis ke kolom cek status dan simpan sesi
     const statusInput = document.getElementById('check-guest-id');
     if (statusInput) {
         statusInput.value = guestId;
-        sessionStorage.setItem('lastCheckedGuestId', guestId);
     }
 
     alert(`Registrasi Berhasil!\n\nNomor Registrasi Tamu Anda: ${guestId}\nKode telah otomatis dimasukkan ke menu Cek Status.`);
     document.getElementById('form-register').reset();
     
-    // Langsung arahkan ke view cek status agar tamu bisa langsung melihat statusnya
     showView('view-status');
-    checkStatus(); 
+    checkStatus();
 }
 
 // FITUR: MENAMPILKAN NOMOR REGISTRASI DAN ID TAMU PADA CEK STATUS KUNJUNGAN
@@ -224,9 +246,6 @@ async function checkStatus() {
         resDiv.innerText = 'Masukkan Nomor Registrasi / ID Tamu terlebih dahulu.'; 
         return;
     }
-
-    // Simpan ke session agar tidak hilang saat di-refresh pada halaman cek status
-    sessionStorage.setItem('lastCheckedGuestId', id);
 
     let guest = null;
     if (supabaseClient) {
@@ -321,10 +340,7 @@ async function handleLogin(e) {
 
     if (loggedIn) {
         currentUserRole = loggedIn.role;
-        
-        // Simpan sesi role dan view admin/superadmin ke sessionStorage
-        sessionStorage.setItem('currentUserRole', currentUserRole);
-        sessionStorage.setItem('activeView', currentUserRole === 'super_admin' ? 'view-superadmin' : 'view-admin');
+        sessionStorage.setItem('currentUserRole', currentUserRole); // Simpan role ke sesi
 
         document.getElementById('form-login').reset();
         
@@ -345,9 +361,8 @@ async function handleLogin(e) {
 
 function logout() { 
     currentUserRole = null; 
-    // Hapus sesi saat logout
-    sessionStorage.removeItem('currentUserRole');
-    sessionStorage.removeItem('activeView');
+    sessionStorage.removeItem('currentUserRole'); // Hapus sesi
+    sessionStorage.setItem('currentView', 'view-home');
     showView('view-home'); 
 }
 
@@ -371,7 +386,6 @@ async function handleResetPassword() {
     showView('view-login');
 }
 
-// MENAMBAH AKUN USER APPROVE (ADMIN BARU)
 async function addApproveUser() {
     const u = document.getElementById('new-admin-user').value.trim();
     const p = document.getElementById('new-admin-pass').value.trim();
@@ -445,7 +459,6 @@ async function deleteApproveUser(username) {
     }
 }
 
-// Manajemen Approval & Data Tamu
 async function loadAdminGuests() {
     let guests = [];
     if (supabaseClient) {
@@ -578,7 +591,6 @@ async function resetAllConfigurations() {
     }
 }
 
-// Manajemen Whitelist PT & Jenis ID
 async function addApprovedCompany() {
     const c = document.getElementById('new-approved-company').value.trim(); 
     if (!c) return;
