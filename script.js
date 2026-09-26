@@ -1,6 +1,5 @@
-// Konfigurasi Supabase (Ganti dengan kredensial Supabase Anda)[cite: 19]
-const SUPABASE_URL = 'https://tgqadtkvarirvppbgyzu.supabase.co';[cite: 19]
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRncWFkdGt2YXJpcnZwcGJneXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzE4NzcsImV4cCI6MjEwNjAwNzg3N30.DGQAgf0qQ_scIn2XHpWSdTDxmnqr-SLyW-HiQ8WqOG0';[cite: 19]
+const SUPABASE_URL = 'https://tgqadtkvarirvppbgyzu.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRncWFkdGt2YXJpcnZwcGJneXp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MzE4NzcsImV4cCI6MjEwNjAwNzg3N30.DGQAgf0qQ_scIn2XHpWSdTDxmnqr-SLyW-HiQ8WqOG0';
 
 let supabaseClient = null;
 try {
@@ -13,7 +12,6 @@ try {
 
 const DEFAULT_ID_TYPES = ["KTP", "SIM", "Paspor", "ID Pegawai", "Lainnya"];
 
-// Kamus Bahasa
 const dictionary = {
     id: {
         welcome: "Selamat Datang di Portal Tamu",
@@ -67,22 +65,21 @@ function changeLanguage() {
 }
 
 function showView(viewId) {
-    document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(el => {
+        el.classList.remove('active');
+    });
     const targetView = document.getElementById(viewId);
     if (targetView) {
         targetView.classList.add('active');
-        // Simpan view aktif ke sessionStorage agar tetap bertahan saat halaman di-refresh
         sessionStorage.setItem('currentActiveView', viewId);
     }
 }
 
-// PERSISTENSI SAAT PAGE LOAD & AUTO CLEAR DATA > 1 HARI
 window.onload = async () => {
     await loadWebSettings();
     await loadDropdownData();
     await autoClearOldGuests();
 
-    // Pulihkan Sesi User / Role Admin atau Super Admin jika ada
     const savedRole = sessionStorage.getItem('currentUserRole');
     const savedView = sessionStorage.getItem('currentActiveView');
 
@@ -98,12 +95,13 @@ window.onload = async () => {
             showView(savedView || 'view-admin');
             loadAdminGuests();
         }
-    } else if (savedView) {
+    } else if (savedView && document.getElementById(savedView)) {
         showView(savedView);
+    } else {
+        showView('view-home');
     }
 };
 
-// FUNGSI AUTO CLEAR DATA TAMU LEBIH DARI 1 HARI (24 Jam)
 async function autoClearOldGuests() {
     const oneDayMs = 24 * 60 * 60 * 1000;
     const now = new Date().getTime();
@@ -192,7 +190,6 @@ async function loadDropdownData() {
     }
 }
 
-// Registrasi Tamu Baru dengan Auto-Fill & Auto-Redirect ke Cek Status
 async function handleRegister(e) {
     e.preventDefault();
     const guestId = 'GST-' + Math.floor(100000 + Math.random() * 900000);
@@ -223,7 +220,6 @@ async function handleRegister(e) {
         if (!comps.includes(compInput)) { comps.push(compInput); localStorage.setItem('approved_companies', JSON.stringify(comps)); }
     }
 
-    // Simpan ke input check-guest-id agar otomatis terisi
     const statusInput = document.getElementById('check-guest-id');
     if (statusInput) {
         statusInput.value = guestId;
@@ -236,7 +232,6 @@ async function handleRegister(e) {
     checkStatus();
 }
 
-// PENCARIAN STATUS (Case-insensitive & Solusi "Tidak Ditemukan")
 async function checkStatus() {
     const rawId = document.getElementById('check-guest-id').value;
     const id = rawId ? rawId.trim() : '';
@@ -306,7 +301,6 @@ async function checkStatus() {
     }
 }
 
-// LOGIN ADMIN & SUPER ADMIN (Input aman tanpa filter ketat password)
 let currentUserRole = null;
 
 async function handleLogin(e) {
@@ -395,7 +389,6 @@ async function handleResetPassword() {
     showView('view-login');
 }
 
-// MANAJEMEN USER APPROVE
 async function addApproveUser() {
     const u = document.getElementById('new-admin-user').value.trim();
     const p = document.getElementById('new-admin-pass').value;
@@ -453,7 +446,7 @@ async function loadApproveUsers() {
         c.innerHTML += `
             <div class="item-row">
                 <span>User Admin: <strong>${u.username}</strong></span>
-                <button onclick="deleteApproveUser('${u.username}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus Akses</button>
+                <button type="button" onclick="deleteApproveUser('${u.username}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button>
             </div>`;
     });
 }
@@ -472,7 +465,6 @@ async function deleteApproveUser(username) {
     }
 }
 
-// DASHBOARD ADMIN
 async function loadAdminGuests() {
     let guests = [];
     if (supabaseClient) {
@@ -494,8 +486,8 @@ async function loadAdminGuests() {
                     <small>Status: <b>${g.status}</b></small>
                 </div>
                 <div class="action-btns">
-                    <button onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:4px 8px; font-size:0.8rem;">Approve</button>
-                    <button onclick="updateGuestStatus('${g.guest_id}', 'Rejected')" class="btn-danger" style="padding:4px 8px; font-size:0.8rem;">Reject</button>
+                    <button type="button" onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:4px 8px; font-size:0.8rem;">Approve</button>
+                    <button type="button" onclick="updateGuestStatus('${g.guest_id}', 'Rejected')" class="btn-danger" style="padding:4px 8px; font-size:0.8rem;">Reject</button>
                 </div>
             </div>`;
     });
@@ -514,7 +506,6 @@ async function updateGuestStatus(id, status) {
     else loadAdminGuests();
 }
 
-// DASHBOARD SUPER ADMIN & TAMPILKAN USER APPROVE DI HAK PENUH
 async function loadSuperAdminGuests() {
     let guests = [];
     let adminUsers = [];
@@ -533,7 +524,6 @@ async function loadSuperAdminGuests() {
     if (!c) return;
     c.innerHTML = '';
 
-    // Tampilkan daftar manajemen akses user approve di bagian Hak Penuh Persetujuan[cite: 19]
     let adminListHtml = `<div style="background:#f9f9f9; padding:10px; border-radius:6px; margin-bottom:12px; border:1px solid #ddd;">
         <strong>👥 Daftar Manajemen Akses User Approve Aktif:</strong><ul style="margin:5px 0 0 15px; padding:0; font-size:0.9rem;">`;
     
@@ -561,9 +551,9 @@ async function loadSuperAdminGuests() {
                     <small>ID: ${g.id_type} (${g.id_number}) | Status: <b>${g.status}</b></small>
                 </div>
                 <div class="action-btns">
-                    <button onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:3px 6px; font-size:0.75rem;">Approve</button>
-                    <button onclick="updateGuestStatus('${g.guest_id}', 'Rejected')" class="btn-danger" style="padding:3px 6px; font-size:0.75rem;">Reject</button>
-                    <button onclick="deleteGuestRecord('${g.guest_id}')" class="btn-danger" style="padding:3px 6px; font-size:0.75rem; background:#8b0000;">Hapus Data</button>
+                    <button type="button" onclick="updateGuestStatus('${g.guest_id}', 'Approved')" class="btn-secondary" style="padding:3px 6px; font-size:0.75rem;">Approve</button>
+                    <button type="button" onclick="updateGuestStatus('${g.guest_id}', 'Rejected')" class="btn-danger" style="padding:3px 6px; font-size:0.75rem;">Reject</button>
+                    <button type="button" onclick="deleteGuestRecord('${g.guest_id}')" class="btn-danger" style="padding:3px 6px; font-size:0.75rem; background:#8b0000;">Hapus</button>
                 </div>
             </div>`;
     });
@@ -634,7 +624,6 @@ async function resetAllConfigurations() {
     }
 }
 
-// Whitelist PT & Jenis ID
 async function addApprovedCompany() {
     const c = document.getElementById('new-approved-company').value.trim(); 
     if (!c) return;
@@ -661,7 +650,7 @@ async function loadManageApprovedCompanies() {
     const container = document.getElementById('approved-companies-manage-list'); 
     if (!container) return;
     container.innerHTML = '';
-    comps.forEach(c => container.innerHTML += `<div class="item-row"><span>${c.company_name}</span><button onclick="deleteComp('${c.company_name}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button></div>`);
+    comps.forEach(c => container.innerHTML += `<div class="item-row"><span>${c.company_name}</span><button type="button" onclick="deleteComp('${c.company_name}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button></div>`);
 }
 
 async function deleteComp(name) {
@@ -708,7 +697,7 @@ async function loadManageIdTypes() {
         container.innerHTML += `
             <div class="item-row">
                 <span>Jenis ID: <strong>${t.name}</strong></span>
-                <button onclick="deleteId('${t.name}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button>
+                <button type="button" onclick="deleteId('${t.name}')" class="btn-danger" style="width:auto; padding:3px 8px; font-size:0.8rem;">Hapus</button>
             </div>`;
     });
 }
