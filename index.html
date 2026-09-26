@@ -81,12 +81,13 @@
             <p id="txt-status-desc">Masukkan Nomor Registrasi / ID Tamu Anda untuk memeriksa status approve.</p>
             
             <div class="search-box">
+                <!-- Auto-fill input nomor registrasi tamu -->
                 <input type="text" id="check-guest-id" placeholder="Contoh: GST-123456">
                 <button onclick="checkStatus()" class="btn-primary" id="btn-check-status">Cek Status</button>
             </div>
             
-            <!-- Wadah Hasil Cek Status Tamu Lengkap dengan Detail & Badge Status -->
-            <div id="status-result" style="display:none; margin-top: 20px;"></div>
+            <!-- Wadah hasil notifikasi & rincian status approve -->
+            <div id="status-result" style="margin-top: 20px; display:none;"></div>
 
             <div class="extra-links" style="margin-top: 25px;">
                 <button class="btn-outline" onclick="showView('view-login')">Login Admin / Super Admin</button>
@@ -213,5 +214,20 @@
     </main>
 
     <script src="script.js"></script>
+    <script>
+        // Fitur Tambahan: Auto-masukan Nomor Registrasi dari URL Parameter (contoh: ?guest=GST-123456) atau memori lokal
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const guestParam = urlParams.get('guest');
+            const lastGuest = guestParam || localStorage.getItem('last_registered_guest');
+            
+            if (lastGuest) {
+                const inputField = document.getElementById('check-guest-id');
+                if (inputField) {
+                    inputField.value = lastGuest;
+                }
+            }
+        });
+    </script>
 </body>
 </html>
